@@ -1,7 +1,7 @@
 package main
 
 import (
-	"minitube/http"
+	"minitube/api"
 	"minitube/store"
 	"minitube/utils"
 )
@@ -13,5 +13,5 @@ func main() {
 	defer log.Sync()
 	defer store.CloseAll()
 
-	http.Router.Run(":80")
+	api.Router.Run(":80")
 }

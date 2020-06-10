@@ -1,4 +1,4 @@
-package http
+package api
 
 import (
 	"errors"
@@ -66,7 +66,17 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 		}
 		return nil, jwt.ErrFailedAuthentication
 	},
-
+	Authorizator: func(data interface{}, c *gin.Context) bool {
+		if user, ok := data.(*entities.User); ok {
+			if c.FullPath() == "/stream/key/:username" {
+				if user.Username != c.Param("username") {
+					return false
+				}
+			}
+			return true
+		}
+		return false
+	},
 	Unauthorized: func(c *gin.Context, code int, message string) {
 		c.JSON(code, gin.H{
 			"code":    code,

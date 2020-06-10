@@ -52,14 +52,18 @@ func getUserByUsernameFromRedis(username string) (*entities.User, error) {
 		log.Warnf("Get user from redis failed: %v", err)
 		return nil, ErrRedisFailed
 	}
-	return entities.NewUserFromMap(mp), nil
+	user := entities.NewUserFromMap(mp)
+	if user == nil {
+		return nil, ErrRedisUserNotExists
+	}
+	return user, nil
 }
 
 
 func saveUserToRedis(user *entities.User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	log.Debugf("Save %#v to Redis", user)
+	// log.Debugf("Save %#v to Redis", user)
 	result := redisClient.HSet(ctx, getUserKey(user.Username), 
 		"username", user.Username,
 		"password", user.Password,

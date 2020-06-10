@@ -1,7 +1,5 @@
 package entities
 
-import "minitube/utils"
-
 // User - minitube user
 type User struct {
 	Username string `form:"username" json:"username" binding:"required"`
@@ -10,7 +8,7 @@ type User struct {
 
 // NewUserFromMap - return a user from map
 func NewUserFromMap(mp map[string]string) *User {
-	utils.Sugar.Debugf("NewUserFromMap: <%v> <%v>", mp["username"], mp["password"])
+	// utils.Sugar.Debugf("NewUserFromMap: <%v> <%v>", mp["username"], mp["password"])
 	if len(mp) == 0 {
 		return nil
 	}

@@ -1,4 +1,4 @@
-package http
+package api
 
 import (
 	"errors"
@@ -28,6 +28,7 @@ func init() {
 
 	Router.POST("/register", register)
 	Router.POST("/login", authMiddleware.LoginHandler)
+	Router.POST("/refresh/", authMiddleware.RefreshHandler)
 	Router.POST("/logout", authMiddleware.LogoutHandler)
 
 	streamGroup := Router.Group("/stream")

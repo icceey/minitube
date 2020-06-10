@@ -24,7 +24,7 @@ var (
 // GetUserByUsername - get user from store by username.
 func GetUserByUsername(username string) (*entities.User, error) {
 	user, errRedis := getUserByUsernameFromRedis(username)
-	if errRedis == nil && user != nil {
+	if errRedis == nil {
 		return user, nil
 	}
 	user, errMysql := getUserByUsernameFromMysql(username)
