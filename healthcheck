@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eo pipefail
+
+host="$(hostname -i || echo '127.0.0.1')"
+err="can't connect to remote host"
+
+if ping="$(wget "$host" 2>&1 | grep -c "$err")" && [ "$ping" != '0' ]; then
+	exit 1
+fi
+
+exit 0

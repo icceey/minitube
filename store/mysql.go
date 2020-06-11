@@ -31,16 +31,21 @@ func init() {
 	mysqlPool.SetMaxOpenConns(3)
 
 	log.Info("Checking MySQL service...")
-	for i := 0; i < 5; i++ {
-		time.Sleep(5 * time.Second)
+	retry, interval := 5, 10
+	for i := 0; i < retry; i++ {
 		err = pingMySQL()
 		if err == nil {
 			break
 		}
-		log.Warnf("Ping MySQL failed %v times, may be mysql container is not ready.", i+1)
-	}
-	if err != nil {
-		log.Fatal("MySQL service access failed: ", err)
+		errMsg := fmt.Sprintf("Ping MySQL failed %v times, ", i+1)
+		if i == retry -1 {
+			errMsg += "maybe some errors have occurred."
+			log.Fatal(errMsg, "MySQL service access failed: ", err)
+		} else {
+			errMsg += fmt.Sprintf("maybe mysql container is not ready? Will retry after %v seconds", interval)
+			log.Warn(errMsg)
+			time.Sleep(time.Duration(interval) * time.Second)
+		}
 	}
 
 	createTableIfNot()

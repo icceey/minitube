@@ -46,12 +46,17 @@ func Ginzap(logger *zap.Logger, timeFormat string, utc bool) gin.HandlerFunc {
 				logger.Error(e)
 			}
 		} else {
+			ip := c.ClientIP()
+			// Ignore health check info.
+			if strings.HasPrefix(ip, "172") || strings.HasPrefix(ip, "127") {
+				return
+			}
 			logger.Info(path,
 				zap.Int("status", c.Writer.Status()),
 				zap.String("method", c.Request.Method),
 				zap.String("path", path),
 				zap.String("query", query),
-				zap.String("ip", c.ClientIP()),
+				zap.String("ip", ip),
 				zap.String("user-agent", c.Request.UserAgent()),
 				zap.String("time", end.Format(timeFormat)),
 				zap.Duration("latency", latency),

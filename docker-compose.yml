@@ -1,4 +1,4 @@
-version: "3"
+version: "3.4"
 
 services:
 
@@ -12,6 +12,7 @@ services:
         - live
         - redis
         - mysql
+      command: ["wait-for-it", $MYSQL_ADDR, "-t", "2", "-q", "--", "./minitube"]
       environment:
         - MYSQL_DATABASE=${MYSQL_DATABASE}
         - MYSQL_USER=${MYSQL_USER}
@@ -20,6 +21,7 @@ services:
         - REDIS_PASSWORD=${REDIS_PASSWORD}
         - REDIS_ADDR=${REDIS_ADDR}
         - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      
 
     live:
       image: icceey/livego
@@ -28,12 +30,12 @@ services:
       ports:
         - "1935:1935"
         - "8080:7001"
-        - "8090"
       depends_on:
         - redis
       environment:
         - REDIS_ADDR=${REDIS_ADDR}
         - REDIS_PASSWORD=${REDIS_PASSWORD}
+
 
     redis:
       image: redis:alpine
@@ -43,8 +45,18 @@ services:
         - "6379"
       volumes:
         - ./config/redis.conf:/usr/local/etc/redis/redis.conf
+        - ./redis-healthcheck.sh:/usr/local/bin/healthcheck
       command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
+      environment:
+        - REDIS_PASSWORD=${REDIS_PASSWORD}
+      healthcheck:
+        test: ["CMD", "healthcheck"]
+        start_period: 8s
+        interval: 4s
+        timeout: 1s
+        retries: 3
     
+        
     mysql:
       image: mysql
       container_name: minitube-mysql
@@ -53,8 +65,17 @@ services:
         - "3306"
       volumes:
         - ./config/my.cnf:/etc/mysql/my.cnf
+        - ./mysql-healthcheck.sh:/usr/local/bin/healthcheck
       environment:
         - MYSQL_DATABASE=${MYSQL_DATABASE}
         - MYSQL_USER=${MYSQL_USER}
         - MYSQL_PASSWORD=${MYSQL_PASSWORD}
         - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      healthcheck:
+        test: ["CMD", "healthcheck"]
+        start_period: 32s
+        interval: 8s
+        timeout: 2s
+        retries: 3
+
+

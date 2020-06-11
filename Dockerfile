@@ -8,6 +8,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o minitube .
 
 FROM alpine:latest
 WORKDIR /app
+RUN apk add --no-cache bash
 COPY --from=builder /app/minitube .
+COPY --from=builder /app/healthcheck /usr/local/bin/
+COPY --from=builder /app/wait-for-it /usr/local/bin/
+HEALTHCHECK --start-period=32s --interval=32s --timeout=2s --retries=3 CMD healthcheck
 EXPOSE 80
-ENTRYPOINT ["./minitube"]
+CMD ["./minitube"]
