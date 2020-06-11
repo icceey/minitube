@@ -75,7 +75,7 @@ func createTableIfNot() {
 	_, err := mysqlPool.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS user (
 		id INT AUTO_INCREMENT PRIMARY KEY,
 		username VARCHAR(20) UNIQUE,
-		password CHAR(64) NOT NULL
+		password CHAR(65) NOT NULL
 	)`)
 	if err != nil {
 		log.Fatal(err.Error())

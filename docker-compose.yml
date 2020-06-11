@@ -20,6 +20,7 @@ services:
         - MYSQL_ADDR=${MYSQL_ADDR}
         - REDIS_PASSWORD=${REDIS_PASSWORD}
         - REDIS_ADDR=${REDIS_ADDR}
+        - LIVE_ADDR=${LIVE_ADDR}
         - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       
 

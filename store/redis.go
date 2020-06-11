@@ -63,7 +63,6 @@ func getUserByUsernameFromRedis(username string) (*entities.User, error) {
 func saveUserToRedis(user *entities.User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	// log.Debugf("Save %#v to Redis", user)
 	result := redisClient.HSet(ctx, getUserKey(user.Username), 
 		"username", user.Username,
 		"password", user.Password,

@@ -8,6 +8,7 @@ import (
 	"minitube/store"
 	"minitube/utils"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -38,16 +39,24 @@ func init() {
 }
 
 func register(c *gin.Context) {
-	username := c.PostForm("username")
-	password := c.PostForm("password")
+	user := new(entities.User)
+	c.Bind(&user)
 
-	log.Debugf("User register <%v> <%v>", username, password)
+	if !utils.CheckUsername(user.Username) || !utils.CheckPassword(user.Password) {
+		c.JSON(200, gin.H{
+			"code": 1,
+			"message": "invalid username or password",
+		})
+		return 
+	}
 
-	_, err := store.GetUserByUsername(username)
+	log.Debugf("User register <%v> <%v>", user.Username, user.Password)
+
+	_, err := store.GetUserByUsername(user.Username)
 	if err == nil {
 		c.JSON(200, gin.H{
 			"code": 1,
-			"message": "Username already exists.",
+			"message": "username already exists",
 		})
 		return
 	}
@@ -55,12 +64,12 @@ func register(c *gin.Context) {
 		c.Error(err)	
 		c.JSON(500, gin.H{
 			"code": 9,
-			"message": "Server Error.",
+			"message": "Server Error",
 		})
 		return
 	}
 
-	passwordEncrypted, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	passwordEncrypted, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		c.Error(err)
 		c.JSON(500, gin.H{
@@ -70,8 +79,8 @@ func register(c *gin.Context) {
 		return
 	}
 
-	log.Debug("username: ", username, "passwordEncrypted: ", string(passwordEncrypted))
-	err = store.SaveUser(&entities.User{Username: username, Password: string(passwordEncrypted)})
+	log.Debug("username: ", user.Username, "passwordEncrypted: ", string(passwordEncrypted))
+	err = store.SaveUser(&entities.User{Username: user.Username, Password: string(passwordEncrypted)})
 	if err != nil {
 		c.Error(err)
 		c.JSON(500, gin.H{
@@ -91,12 +100,14 @@ func getStreamKey(c *gin.Context) {
 	username := c.Param("username")
 	key := getStreamKeyFromLive(c, username)
 	c.JSON(200, gin.H{
+		"code": 0,
 		"key": key,
 	})
 }
 
 func getStreamKeyFromLive(c *gin.Context, username string) string {
-	resp, err := http.Get("http://live:8090/control/get?room=" + username)
+	url := "http://" + os.Getenv("LIVE_ADDR") + "/control/get?room=" + username
+	resp, err := http.Get(url)
 	if err != nil {
 		c.Error(err)
 		return ""

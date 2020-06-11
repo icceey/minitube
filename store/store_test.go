@@ -3,158 +3,124 @@ package store
 import (
 	"minitube/entities"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // This test needs redis and mysql service.
 // Please run test with `test.sh`.
 
+var (
+	user1 = entities.NewUser("1", "1")
+	user2 = entities.NewUser("2", "2")
+	user3 = entities.NewUser("3", "3")
+	user4 = entities.NewUser("4", "4")
+	user5 = entities.NewUser("5", "5")
+)
+
 func TestRedisConnection(t *testing.T) {
-	if err := pingRedis(); err != nil {
-		t.Fatal(err.Error())
-	}
+	err := pingRedis()
+	require.NoError(t, err, "Redis should connected.")
 }
 
 func TestMySQLConnection(t *testing.T) {
-	if err := pingMySQL(); err != nil {
-		t.Fatal(err)
-	}
+	err := pingMySQL()
+	require.NoError(t, err, "MySQL should connected.")
 }
 
 func TestMySQLCreateTable(t *testing.T) {
 	// It should create table `user`.
 	createTableIfNot()
+
 	// Try again, it should ignore.
 	createTableIfNot()
 }
 
 func TestMySQLInsertUser(t *testing.T) {
 	// Add a user to table `user`.
-	err := saveUserToMysql(&entities.User{Username: "1", Password: "1"})
-	if err != nil {
-		t.Fatal("Insert user failed.", err)
-	}
+	err := saveUserToMysql(user1)
+	require.NoError(t, err, "User 1 should be inserted to mysql.")
 }
 
 func TestMySQLGetUserByUsername(t *testing.T) {
+	require := require.New(t)
+
 	// User 1 has inserted.
 	user, err := getUserByUsernameFromMysql("1")
-	if err != nil {
-		t.Fatal("Get user 1 by username failed.", err)
-	}
-	if user.Username != "1" || user.Password != "1" {
-		t.Fatal("Get wrong user from MySQL.", user)
-	}
+	require.NoError(err, "Get user1 from mysql should success.")
+	require.Equal(user1, user, "User 1 should equal to user1.")
+
 	// User 2 isn't exists, should return `ErrMySQLUserNotExists` err.
 	user, err = getUserByUsernameFromMysql("2")
-	if err == nil {
-		t.Fatalf("Get user 2 shouldn't success %#v", user)
-	}
-	if err != ErrMySQLUserNotExists {
-		t.Fatal("Get user failed: ", err)
-	}
+	require.Errorf(err, "Get user2 from mysql shouldn't success %#v.", user)
+	require.EqualError(err, ErrMySQLUserNotExists.Error(), "Get user2 has an unexpected error.")
 }
 
 func TestRedisSaveUser(t *testing.T) {
-	user := &entities.User{
-		Username: "3",
-		Password: "3",
-	}
-	err := saveUserToRedis(user)
-	if err != nil {
-		t.Fatal("Save user 3 to redis failed.", err)
-	}
+	err := saveUserToRedis(user3)
+	require.NoError(t, err, "Save user3 to redis should success.")
 }
 
 func TestRedisGetUser(t *testing.T) {
+	require := require.New(t)
+
 	// User 3 should in redis.
 	user, err := getUserByUsernameFromRedis("3")
-	if err != nil {
-		t.Fatal("Get user 3 from redis failed.", err)
-	}
-	if user.Username != "3" || user.Password != "3" {
-		t.Fatal("Get wrong user 3 from redis.", user)
-	}
+	require.NoError(err, "Get user3 from redis should success.")
+	require.Equal(user3, user, "User 3 should equal to user3.")
+
 	// User 4 shouldn't in redis, and this should return `ErrRedisUserNotExists` err.
 	user, err = getUserByUsernameFromRedis("4")
-	if err == nil {
-		t.Fatal("Get user 4 shouldn't success.", user)
-	}
-	if err != ErrRedisUserNotExists {
-		t.Fatal("Get user 4 failed.", err)
-	}
+	require.Error(err, "Get user4 from redis shouldn't success.")
+	require.EqualError(err, ErrRedisUserNotExists.Error(), "Get user4 has an unexpected error.")
 }
-
 
 func TestGetUserOnlyInRedis(t *testing.T) {
+	require := require.New(t)
+
 	// User 3 only in redis.
 	user, err := GetUserByUsername("3")
-	if err != nil {
-		t.Fatal("Get user 3 from redis failed.", err)
-	}
-	if user.Username != "3" || user.Password != "3" {
-		t.Fatal("Get wrong user 3 from redis.", user)
-	}
+	require.NoError(err, "Get user3 from redis should success.")
+	require.Equal(user3, user, "User 3 should equal to user3.")
+
 	// MySQL don't has this user.
 	user, err = getUserByUsernameFromMysql("3")
-	if err == nil {
-		t.Fatalf("Get user 3 shouldn't success %#v", user)
-	}
-	if err != ErrMySQLUserNotExists {
-		t.Fatal("Get user failed: ", err)
-	}
+	require.Errorf(err, "Get user3 from mysql shouldn't success %#v.", user)
+	require.EqualError(err, ErrMySQLUserNotExists.Error(), "Get user3 has an unexpected error.")
 }
 
-
 func TestGetUserOnlyInMysql(t *testing.T) {
+	require := require.New(t)
+
 	// User 1 not in redis.
 	user, err := getUserByUsernameFromRedis("1")
-	if err == nil {
-		t.Fatal("Get user 1 shouldn't success.", user)
-	}
-	if err != ErrRedisUserNotExists {
-		t.Fatal("Get user 1 failed.", err)
-	}
+	require.Error(err, "Get user1 from redis shouldn't success.")
+	require.EqualError(err, ErrRedisUserNotExists.Error(), "Get user1 has an unexpected error.")
+
 	// User 1 in mysql, so get should success.
 	user, err = GetUserByUsername("1")
-	if err != nil {
-		t.Fatal("Get user 1 by username failed.", err)
-	}
-	if user.Username != "1" || user.Password != "1" {
-		t.Fatal("Get wrong user from MySQL.", user)
-	}
+	require.NoError(err, "Get user1 should success.")
+	require.Equal(user1, user, "User 3 should equal to user3.")
+
 	// And then user 1 should store in redis.
 	user, err = getUserByUsernameFromRedis("1")
-	if err != nil {
-		t.Fatal("Get user 1 from mysql but not store in redis.", err)
-	}
-	if user.Username != "1" || user.Password != "1" {
-		t.Fatal("Get wrong user 1 from redis.", user)
-	}
+	require.NoError(err, "Get user1 from redis should success.")
+	require.Equal(user1, user, "User 1 should equal to user1.")
 }
 
 func TestStoreUser(t *testing.T) {
-	user := &entities.User{
-		Username: "5",
-		Password: "5",
-	}
-	err := SaveUser(user)
-	if err != nil {
-		t.Fatal("Save user failed.", err)
-	}
+	require := require.New(t)
+
+	err := SaveUser(user5)
+	require.NoError(err, "Save user5 should success.")
+
 	// get user 5 from redis.
-	userGet, err := getUserByUsernameFromRedis("5")
-	if err != nil {
-		t.Fatal("Get user 5 from redis failed.", err)
-	}
-	if userGet.Username != "5" || userGet.Password != "5" {
-		t.Fatal("Get wrong user 5 from redis.", user)
-	}
+	user, err := getUserByUsernameFromRedis("5")
+	require.NoError(err, "Get user5 from redis should success.")
+	require.Equal(user5, user, "User 5 should equal to user3.")
+
 	// get user 5 from mysql.
-	userGet, err = getUserByUsernameFromMysql("5")
-	if err != nil {
-		t.Fatal("Get user 5 from mysql failed.", err)
-	}
-	if userGet.Username != "5" || userGet.Password != "5" {
-		t.Fatal("Get wrong user 5 from mysql.", user)
-	}
+	user, err = getUserByUsernameFromMysql("5")
+	require.NoError(err, "Get user5 from mysql should success.")
+	require.Equal(user5, user, "User 5 should equal to user5.")
 }

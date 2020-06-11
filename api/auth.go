@@ -5,6 +5,7 @@ import (
 	"minitube/entities"
 	jwt "minitube/middleware"
 	"minitube/store"
+	"minitube/utils"
 	"os"
 	"time"
 
@@ -37,12 +38,16 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 	},
 
 	Authenticator: func(c *gin.Context) (interface{}, error) {
-		var loginUser entities.User
-		if err := c.ShouldBind(&loginUser); err != nil {
+		loginUser := new(entities.User)
+		if err := c.ShouldBind(loginUser); err != nil {
 			return nil, jwt.ErrMissingLoginValues
 		}
 		username := loginUser.Username
 		password := loginUser.Password
+
+		if !utils.CheckUsername(username) || !utils.CheckPassword(password) {
+			return nil, jwt.ErrFailedAuthentication
+		}
 
 		log.Debugf("User %#v is logining in.", loginUser)
 		user, err := store.GetUserByUsername(username)
@@ -57,9 +62,8 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 		log.Debugf("User %#v need auth to %#v", loginUser, user)
 		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 		if err == nil {
-			return &entities.User{
-				Username: username,
-			}, nil
+			log.Debugf("User %#v auth success", user)
+			return user, nil
 		}
 		if errors.Is(err, bcrypt.ErrHashTooShort) {
 			c.Error(err)
