@@ -22,10 +22,27 @@ var Router *gin.Engine
 var log = utils.Sugar
 
 func init() {
+	if debug, ok := os.LookupEnv("DEBUG"); ok && debug == "true" {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	Router = gin.New()
 
 	Router.Use(middleware.Ginzap(utils.Logger, time.RFC3339, true))
 	Router.Use(middleware.RecoveryWithZap(utils.Logger, true))
+
+	// Router.LoadHTMLFiles("./dist/index.html")
+	// Router.Static("/css", "./dist/css")
+	// Router.Static("/js", "./dist/js")
+	// Router.Static("/fonts", "./dist/fonts")
+	// Router.Static("/img", "./dist/img")
+	// Router.StaticFile("/favicon.ico", "./dist/favicon.ico")
+
+	// Router.GET("/", func(context *gin.Context) {
+	// 	context.HTML(http.StatusOK, "index.html", nil)
+	// })
 
 	Router.POST("/register", register)
 	Router.POST("/login", authMiddleware.LoginHandler)
@@ -40,30 +57,34 @@ func init() {
 
 func register(c *gin.Context) {
 	user := new(entities.User)
-	c.Bind(&user)
+	err := c.Bind(&user)
+	if err != nil {
+		// If bind error, code will set to 400.
+		return
+	}
 
 	if !utils.CheckUsername(user.Username) || !utils.CheckPassword(user.Password) {
-		c.JSON(200, gin.H{
-			"code": 1,
+		c.JSON(http.StatusNotAcceptable, gin.H{
+			"code": http.StatusNotAcceptable,
 			"message": "invalid username or password",
 		})
-		return 
+		return
 	}
 
 	log.Debugf("User register <%v> <%v>", user.Username, user.Password)
 
-	_, err := store.GetUserByUsername(user.Username)
+	_, err = store.GetUserByUsername(user.Username)
 	if err == nil {
-		c.JSON(200, gin.H{
-			"code": 1,
+		c.JSON(http.StatusConflict, gin.H{
+			"code": http.StatusConflict,
 			"message": "username already exists",
 		})
 		return
 	}
 	if !errors.Is(err, store.ErrRedisUserNotExists) && !errors.Is(err, store.ErrMySQLUserNotExists) {
 		c.Error(err)	
-		c.JSON(500, gin.H{
-			"code": 9,
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code": http.StatusInternalServerError,
 			"message": "Server Error",
 		})
 		return
@@ -72,8 +93,8 @@ func register(c *gin.Context) {
 	passwordEncrypted, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		c.Error(err)
-		c.JSON(500, gin.H{
-			"code": 9,
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code": http.StatusInternalServerError,
 			"message": "Server Error.",
 		})
 		return
@@ -83,15 +104,15 @@ func register(c *gin.Context) {
 	err = store.SaveUser(&entities.User{Username: user.Username, Password: string(passwordEncrypted)})
 	if err != nil {
 		c.Error(err)
-		c.JSON(500, gin.H{
-			"code": 9,
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code": http.StatusInternalServerError,
 			"message": "Server Error.",
 		})
 		return
 	}
 
-	c.JSON(200, gin.H{
-		"code":    0,
+	c.JSON(http.StatusOK, gin.H{
+		"code":    http.StatusOK,
 		"message": "OK",
 	})
 }
@@ -99,8 +120,8 @@ func register(c *gin.Context) {
 func getStreamKey(c *gin.Context) {
 	username := c.Param("username")
 	key := getStreamKeyFromLive(c, username)
-	c.JSON(200, gin.H{
-		"code": 0,
+	c.JSON(http.StatusOK, gin.H{
+		"code": http.StatusOK,
 		"key": key,
 	})
 }

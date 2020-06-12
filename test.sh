@@ -26,6 +26,7 @@ export JWT_SECRET_KEY=minitube
 export MYSQL_ADDR=localhost:3306
 export REDIS_ADDR=localhost:6379
 export LIVE_ADDR=localhost:8090
+export DEBUG=true
 
 # wait for mysql container initialize.
 sleep 15s
@@ -43,6 +44,7 @@ unset JWT_SECRET_KEY
 unset MYSQL_ADDR
 unset REDIS_ADDR
 unset LIVE_ADDR
+unset DEBUG
 
 echo 'Stopping docker container...'
 docker stop minitube-live-test

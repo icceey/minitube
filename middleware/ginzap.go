@@ -28,12 +28,12 @@ import (
 //   2. A boolean stating whether to use UTC time zone or local.
 func Ginzap(logger *zap.Logger, timeFormat string, utc bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		start := time.Now()
+
 		// some evil middlewares modify this values
 		path := c.Request.URL.Path
-		query := c.Request.URL.RawQuery
-		c.Next()
 
+		start := time.Now()
+		c.Next()
 		end := time.Now()
 		latency := end.Sub(start)
 		if utc {
@@ -48,14 +48,13 @@ func Ginzap(logger *zap.Logger, timeFormat string, utc bool) gin.HandlerFunc {
 		} else {
 			ip := c.ClientIP()
 			// Ignore health check info.
-			if strings.HasPrefix(ip, "172") || strings.HasPrefix(ip, "127") {
+			if strings.HasPrefix(ip, "172.19") {
 				return
 			}
 			logger.Info(path,
 				zap.Int("status", c.Writer.Status()),
 				zap.String("method", c.Request.Method),
 				zap.String("path", path),
-				zap.String("query", query),
 				zap.String("ip", ip),
 				zap.String("user-agent", c.Request.UserAgent()),
 				zap.String("time", end.Format(timeFormat)),
