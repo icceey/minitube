@@ -19,12 +19,10 @@ import (
 // Please run test with `test.sh`.
 
 var (
-	userNil = []*entities.User{
+	userInvalid = []*entities.User{
 		entities.NewUser("", ""),
 		entities.NewUser("11", ""),
 		entities.NewUser("", "11"),
-	}
-	userInvalid = []*entities.User{
 		entities.NewUser("11", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba15713"),
 		entities.NewUser("11", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba1571321"),
 		entities.NewUser("11", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba15713g"),
@@ -73,20 +71,11 @@ func TestRegister(t *testing.T) {
 
 	// not has username or password will fail.
 	var resp response
-	body := postJSON(t, "/register", map[string]string{}, "")
+	body := postJSON(t, "/register", nil, "")
 	err := json.Unmarshal(body, &resp)
 	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
 	require.Equal(respRegisterInvalid, resp, "User {} shouldn't register success.")
 	log.Info(resp)
-
-	// Don't have username or password will register fail.
-	for _, user := range userNil {
-		var resp response
-		body := postJSON(t, "/register", mapUser(user), "")
-		err := json.Unmarshal(body, &resp)
-		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
-		require.Equalf(respRegisterInvalid, resp, "User %#v shouldn't register success.", user)
-	}
 
 	// Username should only have english letters and number
 	// Password will hash by frontend, so it should be hex number string with length 64.
@@ -111,15 +100,6 @@ func TestRegister(t *testing.T) {
 
 func TestLogin(t *testing.T) {
 	require := require.New(t)
-
-	// Don't have username or password will login fail.
-	for _, user := range userNil {
-		var resp response
-		body := postJSON(t, "/login", mapUser(user), "")
-		err := json.Unmarshal(body, &resp)
-		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
-		require.Equalf(respLoginMissing, resp, "User %#v shouldn't login success.", user)
-	}
 
 	// Username should only have english letters and number
 	// Password will hash by frontend, so it should be hex number string with length 64.
@@ -304,6 +284,7 @@ func postJSON(t *testing.T, uri string, mp map[string]string, token string) []by
 
 	resp := rec.Result()
 	defer resp.Body.Close()
+	log.Info("===========>", resp.StatusCode)
 
 	body, err := ioutil.ReadAll(resp.Body)
 	require.NoErrorf(t, err, "Request %v shouldn't has error.", uri)

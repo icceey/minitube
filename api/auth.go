@@ -5,7 +5,6 @@ import (
 	"minitube/entities"
 	jwt "minitube/middleware"
 	"minitube/store"
-	"minitube/utils"
 	"os"
 	"time"
 
@@ -40,14 +39,10 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 	Authenticator: func(c *gin.Context) (interface{}, error) {
 		loginUser := new(entities.User)
 		if err := c.ShouldBind(loginUser); err != nil {
-			return nil, jwt.ErrMissingLoginValues
+			return nil, jwt.ErrFailedAuthentication
 		}
 		username := loginUser.Username
 		password := loginUser.Password
-
-		if !utils.CheckUsername(username) || !utils.CheckPassword(password) {
-			return nil, jwt.ErrFailedAuthentication
-		}
 
 		log.Debugf("User %#v is logining in.", loginUser)
 		user, err := store.GetUserByUsername(username)
@@ -90,8 +85,8 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 
 	TokenLookup: "header: Authorization, query: token, cookie: token",
 
-	SendCookie:       true,
-	SecureCookie:     false,
-	CookieHTTPOnly:   true,
-	CookieName:       "token",
+	SendCookie:     true,
+	SecureCookie:   false,
+	CookieHTTPOnly: true,
+	CookieName:     "token",
 })

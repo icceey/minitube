@@ -66,7 +66,7 @@ func getMe(c *gin.Context) {
 	username, ok := i.(string)
 	if !exists || !ok {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"code": http.StatusBadRequest,
+			"code":    http.StatusBadRequest,
 			"message": "Bad Token.",
 		})
 		return
@@ -76,7 +76,7 @@ func getMe(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, store.ErrRedisUserNotExists) || errors.Is(err, store.ErrMySQLUserNotExists) {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"code": http.StatusBadRequest,
+				"code":    http.StatusBadRequest,
 				"message": "User not exists.",
 			})
 			return
@@ -90,7 +90,7 @@ func getMe(c *gin.Context) {
 	}
 
 	// Don't return password.
-	user.Password=""
+	user.Password = ""
 	c.JSON(http.StatusOK, gin.H{
 		"code": http.StatusOK,
 		"user": user,
@@ -99,13 +99,7 @@ func getMe(c *gin.Context) {
 
 func register(c *gin.Context) {
 	user := new(entities.User)
-	err := c.Bind(&user)
-	if err != nil {
-		// If bind error, code will set to 400.
-		return
-	}
-
-	if !utils.CheckUsername(user.Username) || !utils.CheckPassword(user.Password) {
+	if err := c.ShouldBind(user); err != nil {
 		c.JSON(http.StatusNotAcceptable, gin.H{
 			"code":    http.StatusNotAcceptable,
 			"message": "invalid username or password",
