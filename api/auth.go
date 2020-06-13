@@ -87,4 +87,11 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 			"message": message,
 		})
 	},
+
+	TokenLookup: "header: Authorization, query: token, cookie: token",
+
+	SendCookie:       true,
+	SecureCookie:     false,
+	CookieHTTPOnly:   true,
+	CookieName:       "token",
 })

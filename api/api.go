@@ -46,13 +46,55 @@ func init() {
 
 	Router.POST("/register", register)
 	Router.POST("/login", authMiddleware.LoginHandler)
-	Router.POST("/refresh/", authMiddleware.RefreshHandler)
+	Router.POST("/refresh", authMiddleware.RefreshHandler)
 	Router.POST("/logout", authMiddleware.LogoutHandler)
+
+	userGroup := Router.Group("/user")
+	userGroup.Use(authMiddleware.MiddlewareFunc())
+	userGroup.GET("/me", getMe)
 
 	streamGroup := Router.Group("/stream")
 	streamGroup.Use(authMiddleware.MiddlewareFunc())
 	streamGroup.GET("/key/:username", getStreamKey)
 
+}
+
+func getMe(c *gin.Context) {
+	claims := middleware.ExtractClaims(c)
+
+	i, exists := claims[authMiddleware.IdentityKey]
+	username, ok := i.(string)
+	if !exists || !ok {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": http.StatusBadRequest,
+			"message": "Bad Token.",
+		})
+		return
+	}
+
+	user, err := store.GetUserByUsername(username)
+	if err != nil {
+		if errors.Is(err, store.ErrRedisUserNotExists) || errors.Is(err, store.ErrMySQLUserNotExists) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code": http.StatusBadRequest,
+				"message": "User not exists.",
+			})
+			return
+		}
+		c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    http.StatusInternalServerError,
+			"message": "Server Error",
+		})
+		return
+	}
+
+	// Don't return password.
+	user.Password=""
+	c.JSON(http.StatusOK, gin.H{
+		"code": http.StatusOK,
+		"user": user,
+	})
 }
 
 func register(c *gin.Context) {
@@ -65,7 +107,7 @@ func register(c *gin.Context) {
 
 	if !utils.CheckUsername(user.Username) || !utils.CheckPassword(user.Password) {
 		c.JSON(http.StatusNotAcceptable, gin.H{
-			"code": http.StatusNotAcceptable,
+			"code":    http.StatusNotAcceptable,
 			"message": "invalid username or password",
 		})
 		return
@@ -76,15 +118,15 @@ func register(c *gin.Context) {
 	_, err = store.GetUserByUsername(user.Username)
 	if err == nil {
 		c.JSON(http.StatusConflict, gin.H{
-			"code": http.StatusConflict,
+			"code":    http.StatusConflict,
 			"message": "username already exists",
 		})
 		return
 	}
 	if !errors.Is(err, store.ErrRedisUserNotExists) && !errors.Is(err, store.ErrMySQLUserNotExists) {
-		c.Error(err)	
+		c.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"code": http.StatusInternalServerError,
+			"code":    http.StatusInternalServerError,
 			"message": "Server Error",
 		})
 		return
@@ -94,7 +136,7 @@ func register(c *gin.Context) {
 	if err != nil {
 		c.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"code": http.StatusInternalServerError,
+			"code":    http.StatusInternalServerError,
 			"message": "Server Error.",
 		})
 		return
@@ -105,7 +147,7 @@ func register(c *gin.Context) {
 	if err != nil {
 		c.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"code": http.StatusInternalServerError,
+			"code":    http.StatusInternalServerError,
 			"message": "Server Error.",
 		})
 		return
@@ -122,7 +164,7 @@ func getStreamKey(c *gin.Context) {
 	key := getStreamKeyFromLive(c, username)
 	c.JSON(http.StatusOK, gin.H{
 		"code": http.StatusOK,
-		"key": key,
+		"key":  key,
 	})
 }
 
