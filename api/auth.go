@@ -2,8 +2,8 @@ package api
 
 import (
 	"errors"
-	"minitube/entities"
 	jwt "minitube/middleware"
+	"minitube/models"
 	"minitube/store"
 	"os"
 	"time"
@@ -21,7 +21,7 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 	TokenHeadName: "MiniTube",
 
 	PayloadFunc: func(data interface{}) jwt.MapClaims {
-		if v, ok := data.(*entities.User); ok {
+		if v, ok := data.(*models.User); ok {
 			return jwt.MapClaims{
 				"username": v.Username,
 			}
@@ -31,14 +31,15 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 
 	IdentityHandler: func(c *gin.Context) interface{} {
 		claims := jwt.ExtractClaims(c)
-		return &entities.User{
+		return &models.User{
 			Username: claims["username"].(string),
 		}
 	},
 
 	Authenticator: func(c *gin.Context) (interface{}, error) {
-		loginUser := new(entities.User)
+		loginUser := new(models.LoginModel)
 		if err := c.ShouldBind(loginUser); err != nil {
+			log.Debug(err)
 			return nil, jwt.ErrFailedAuthentication
 		}
 		username := loginUser.Username
@@ -66,7 +67,7 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 		return nil, jwt.ErrFailedAuthentication
 	},
 	Authorizator: func(data interface{}, c *gin.Context) bool {
-		if user, ok := data.(*entities.User); ok {
+		if user, ok := data.(*models.User); ok {
 			if c.FullPath() == "/stream/key/:username" {
 				if user.Username != c.Param("username") {
 					return false

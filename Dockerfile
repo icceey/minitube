@@ -9,7 +9,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o minitube .
 FROM alpine:latest
 WORKDIR /app
 RUN apk add --no-cache bash
-# COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/out ./out
 COPY --from=builder /app/minitube .
 COPY --from=builder /app/healthcheck /usr/local/bin/
 COPY --from=builder /app/wait-for-it /usr/local/bin/

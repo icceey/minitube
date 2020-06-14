@@ -2,7 +2,8 @@ package store
 
 import (
 	"context"
-	"minitube/entities"
+	"encoding/json"
+	"minitube/models"
 	"os"
 
 	"github.com/go-redis/redis/v8"
@@ -23,7 +24,6 @@ func init() {
 	log.Info("Redis is OK.")
 }
 
-
 func newRedisClient() *redis.Client {
 	return redis.NewClient(&redis.Options{
 		Addr:     os.Getenv("REDIS_ADDR"),
@@ -32,19 +32,17 @@ func newRedisClient() *redis.Client {
 	})
 }
 
-
 func pingRedis() error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return redisClient.Ping(ctx).Err()
 }
 
-
-func getUserByUsernameFromRedis(username string) (*entities.User, error) {
+func getUserByUsernameFromRedis(username string) (*models.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	result := redisClient.HGetAll(ctx, getUserKey(username))
-	mp, err := result.Result()
+	result := redisClient.Get(ctx, getUserKey(username))
+	jsonStr, err := result.Result()
 	if err != nil {
 		if err == redis.Nil {
 			return nil, ErrRedisUserNotExists
@@ -52,29 +50,30 @@ func getUserByUsernameFromRedis(username string) (*entities.User, error) {
 		log.Warnf("Get user from redis failed: %v", err)
 		return nil, ErrRedisFailed
 	}
-	user := entities.NewUserFromMap(mp)
-	if user == nil {
-		return nil, ErrRedisUserNotExists
+	user := new(models.User)
+	err = json.Unmarshal([]byte(jsonStr), user)
+	if err != nil {
+		log.Warnf("Unmarshal <%v> to user err: %v", jsonStr, err)
+		return nil, err
 	}
 	return user, nil
 }
 
-
-func saveUserToRedis(user *entities.User) error {
+func saveUserToRedis(user *models.User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	result := redisClient.HSet(ctx, getUserKey(user.Username), 
-		"username", user.Username,
-		"password", user.Password,
-	)
-	err := result.Err()
+	userBytes, err := json.Marshal(user)
+	if err != nil {
+		log.Warnf("Marshal user %#v error: %v", user, err)
+		return err
+	}
+	err = redisClient.Set(ctx, getUserKey(user.Username), userBytes, 0).Err()
 	if err != nil {
 		log.Warnf("Save user %#v to redis failed: %v", user, err)
 		return err
 	}
 	return nil
 }
-
 
 func getUserKey(username string) string {
 	return "user:" + username

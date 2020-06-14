@@ -3,8 +3,8 @@ package api
 import (
 	"errors"
 	"io/ioutil"
-	"minitube/entities"
 	"minitube/middleware"
+	"minitube/models"
 	"minitube/store"
 	"minitube/utils"
 	"net/http"
@@ -33,16 +33,26 @@ func init() {
 	Router.Use(middleware.Ginzap(utils.Logger, time.RFC3339, true))
 	Router.Use(middleware.RecoveryWithZap(utils.Logger, true))
 
-	// Router.LoadHTMLFiles("./dist/index.html")
-	// Router.Static("/css", "./dist/css")
-	// Router.Static("/js", "./dist/js")
-	// Router.Static("/fonts", "./dist/fonts")
-	// Router.Static("/img", "./dist/img")
-	// Router.StaticFile("/favicon.ico", "./dist/favicon.ico")
+	Router.LoadHTMLFiles("./out/index.html", "./out/live.html",
+		"./out/login.html", "./out/register.html", "./out/404.html")
+	Router.Static("/_next/static", "./out/_next/static")
+	Router.StaticFile("/favicon.ico", "./out/favicon.ico")
 
-	// Router.GET("/", func(context *gin.Context) {
-	// 	context.HTML(http.StatusOK, "index.html", nil)
-	// })
+	Router.GET("/", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "index.html", nil)
+	})
+	Router.GET("/index", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "index.html", nil)
+	})
+	Router.GET("/login", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "login.html", nil)
+	})
+	Router.GET("/register", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "register.html", nil)
+	})
+	Router.GET("/live/:username", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "live.html", nil)
+	})
 
 	Router.POST("/register", register)
 	Router.POST("/login", authMiddleware.LoginHandler)
@@ -98,17 +108,17 @@ func getMe(c *gin.Context) {
 }
 
 func register(c *gin.Context) {
-	user := new(entities.User)
+	user := new(models.RegisterModel)
 	if err := c.ShouldBind(user); err != nil {
+		log.Debug(err)
 		c.JSON(http.StatusNotAcceptable, gin.H{
 			"code":    http.StatusNotAcceptable,
-			"message": "invalid username or password",
+			"message": "invalid felid",
 		})
 		return
 	}
 
-	log.Debugf("User register <%v> <%v>", user.Username, user.Password)
-
+	log.Debugf("User register <%#v>", user)
 	_, err = store.GetUserByUsername(user.Username)
 	if err == nil {
 		c.JSON(http.StatusConflict, gin.H{
@@ -136,8 +146,9 @@ func register(c *gin.Context) {
 		return
 	}
 
-	log.Debug("username: ", user.Username, "passwordEncrypted: ", string(passwordEncrypted))
-	err = store.SaveUser(&entities.User{Username: user.Username, Password: string(passwordEncrypted)})
+	user.Password = string(passwordEncrypted)
+	log.Debugf("User register <%#v>", user)
+	err = store.SaveUser(models.NewUserFromRegister(user))
 	if err != nil {
 		c.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{

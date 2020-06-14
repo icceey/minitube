@@ -9,6 +9,7 @@
         "favicon",
         "gonic",
         "livego",
-        "minitube"
+        "minitube",
+        "stretchr"
     ]
 }

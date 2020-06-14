@@ -2,33 +2,32 @@ package store
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
-	"minitube/entities"
+	"minitube/models"
 	"os"
 	"time"
+
+	"github.com/jinzhu/gorm"
 
 	_ "github.com/go-sql-driver/mysql" // mysql driver
 )
 
-
-var mysqlPool *sql.DB
-var userQueryStmt *sql.Stmt
-
+var db *gorm.DB
 
 func init() {
 	log.Info("Initialize mysql connection pool...")
 	var err error
-	dataSourceName := fmt.Sprintf("%v:%v@tcp(%v)/%v", os.Getenv("MYSQL_USER"), 
-		os.Getenv("MYSQL_PASSWORD"), os.Getenv("MYSQL_ADDR"), os.Getenv("MYSQL_DATABASE"))
-	mysqlPool, err = sql.Open("mysql", dataSourceName)
+	dataSourceName := fmt.Sprintf("%v:%v@tcp(%v)/%v?charset=utf8&parseTime=True&loc=Local",
+		os.Getenv("MYSQL_USER"), os.Getenv("MYSQL_PASSWORD"), os.Getenv("MYSQL_ADDR"), os.Getenv("MYSQL_DATABASE"))
+	db, err = gorm.Open("mysql", dataSourceName)
 	if err != nil {
 		log.Fatal("MySQL open failed: ", err)
 	}
 
-	mysqlPool.SetConnMaxLifetime(0)
-	mysqlPool.SetMaxIdleConns(3)
-	mysqlPool.SetMaxOpenConns(3)
+	db.SingularTable(true)
+	db.DB().SetConnMaxLifetime(0)
+	db.DB().SetMaxIdleConns(3)
+	db.DB().SetMaxOpenConns(3)
 
 	log.Info("Checking MySQL service...")
 	retry, interval := 5, 10
@@ -38,7 +37,7 @@ func init() {
 			break
 		}
 		errMsg := fmt.Sprintf("Ping MySQL failed %v times, ", i+1)
-		if i == retry -1 {
+		if i == retry-1 {
 			errMsg += "maybe some errors have occurred."
 			log.Fatal(errMsg, "MySQL service access failed: ", err)
 		} else {
@@ -48,49 +47,22 @@ func init() {
 		}
 	}
 
-	createTableIfNot()
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	userQueryStmt, err = mysqlPool.PrepareContext(ctx, "SELECT username, password FROM user WHERE username = ?")
-	if err != nil {
-		log.Fatal("MySQL user query statement prepare failed: ", err)
-	}
-
+	db.AutoMigrate(&models.User{})
 
 	log.Info("MySQL is OK.")
 }
 
-
 func pingMySQL() error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	return mysqlPool.PingContext(ctx)
+	return db.DB().PingContext(ctx)
 }
 
-
-func createTableIfNot() {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	_, err := mysqlPool.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS user (
-		id INT AUTO_INCREMENT PRIMARY KEY,
-		username VARCHAR(20) UNIQUE,
-		password CHAR(65) NOT NULL
-	)`)
+func getUserByUsernameFromMysql(username string) (*models.User, error) {
+	user := new(models.User)
+	err := db.Where("username = ?", username).Take(user).Error
 	if err != nil {
-		log.Fatal(err.Error())
-	}
-}
-
-
-func getUserByUsernameFromMysql(username string) (*entities.User, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	row := userQueryStmt.QueryRowContext(ctx, username)
-	user := new(entities.User)
-	err := row.Scan(&user.Username, &user.Password)
-	if err != nil {
-		if err == sql.ErrNoRows {
+		if gorm.IsRecordNotFoundError(err) {
 			return nil, ErrMySQLUserNotExists
 		}
 		log.Warnf("Get user %v from Mysql failed: %v", username, err)
@@ -99,14 +71,15 @@ func getUserByUsernameFromMysql(username string) (*entities.User, error) {
 	return user, nil
 }
 
-
-func saveUserToMysql(user *entities.User) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	_, err := mysqlPool.ExecContext(ctx, "INSERT user (username,password) VALUES(?,?)", user.Username, user.Password)
-	if err != nil {
-		log.Warnf("Save user %#v to Mysql failed: %v", user, err)
-		return err
+func saveUserToMysql(user *models.User) error {
+	if db.NewRecord(user) {
+		log.Debugf("%#v", user)
+		err := db.Create(user).Error
+		if err != nil {
+			log.Warnf("Save user %#v to Mysql failed: %v", user, err)
+			return err
+		}
+		return nil
 	}
 	return nil
 }

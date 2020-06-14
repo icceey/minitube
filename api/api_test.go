@@ -3,7 +3,7 @@ package api
 import (
 	"encoding/json"
 	"io/ioutil"
-	"minitube/entities"
+	"minitube/models"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -19,30 +19,12 @@ import (
 // Please run test with `test.sh`.
 
 var (
-	userInvalid = []*entities.User{
-		entities.NewUser("", ""),
-		entities.NewUser("11", ""),
-		entities.NewUser("", "11"),
-		entities.NewUser("11", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba15713"),
-		entities.NewUser("11", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba1571321"),
-		entities.NewUser("11", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba15713g"),
-		entities.NewUser("11", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba15713@"),
-		entities.NewUser("@", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"),
-		entities.NewUser("-", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"),
-		entities.NewUser("_", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"),
-		entities.NewUser("1234567890123456789 ", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"),
-		entities.NewUser("123456789012345678900", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"),
-	}
-	userWrong = []*entities.User{
-		entities.NewUser("11", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"),
-		entities.NewUser("12", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"),
-		entities.NewUser("21", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157131"),
-		entities.NewUser("22", "fca26135ea43ad0ba904e62c85793768e4c9a136d2660bb2b45952ad445f5921"),
-	}
-	userOK = []*entities.User{
-		entities.NewUser("21", "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"),
-		entities.NewUser("22", "fca26135ea43ad0ba904e62c85793768e4c9a136d2660bb2b15952ad445f5921"),
-	}
+	invalidRegister  []*models.RegisterModel
+	invalidLoginUser []*models.LoginModel
+	wrongLoginUser   []*models.LoginModel
+	validRegister    []*models.RegisterModel
+	validLoginUser   []*models.LoginModel
+	tokens           []string
 )
 
 type response struct {
@@ -54,14 +36,14 @@ type response struct {
 
 	Key string
 
-	User *entities.User
+	User *models.User
 }
 
 var (
 	respLoginMissing    = response{Code: http.StatusUnauthorized, Message: "missing Username or Password"}
 	respLoginIncorrect  = response{Code: http.StatusUnauthorized, Message: "incorrect Username or Password"}
 	respRegisterExists  = response{Code: http.StatusConflict, Message: "username already exists"}
-	respRegisterInvalid = response{Code: http.StatusNotAcceptable, Message: "invalid username or password"}
+	respRegisterInvalid = response{Code: http.StatusNotAcceptable, Message: "invalid felid"}
 	respRegisterOK      = response{Code: http.StatusOK, Message: "OK"}
 	respTokenNotMatch   = response{Code: http.StatusForbidden, Message: "you don't have permission to access this resource"}
 )
@@ -77,10 +59,8 @@ func TestRegister(t *testing.T) {
 	require.Equal(respRegisterInvalid, resp, "User {} shouldn't register success.")
 	log.Info(resp)
 
-	// Username should only have english letters and number
-	// Password will hash by frontend, so it should be hex number string with length 64.
 	// Username or password not valid  will fail register.
-	for _, user := range userInvalid {
+	for _, user := range invalidRegister {
 		var resp response
 		body := postJSON(t, "/register", mapUser(user), "")
 		err := json.Unmarshal(body, &resp)
@@ -89,7 +69,7 @@ func TestRegister(t *testing.T) {
 	}
 
 	// This should register success.
-	for _, user := range userOK {
+	for _, user := range validRegister {
 		var resp response
 		body := postJSON(t, "/register", mapUser(user), "")
 		err := json.Unmarshal(body, &resp)
@@ -101,10 +81,8 @@ func TestRegister(t *testing.T) {
 func TestLogin(t *testing.T) {
 	require := require.New(t)
 
-	// Username should only have english letters and number
-	// Password will hash by frontend, so it should be hex number string with length 64.
 	// Username or password not valid  will fail login.
-	for _, user := range userInvalid {
+	for _, user := range invalidLoginUser {
 		var resp response
 		body := postJSON(t, "/login", mapUser(user), "")
 		err := json.Unmarshal(body, &resp)
@@ -113,7 +91,7 @@ func TestLogin(t *testing.T) {
 	}
 
 	// Username and password not match will fail.
-	for _, user := range userWrong {
+	for _, user := range wrongLoginUser {
 		var resp response
 		body := postJSON(t, "/login", mapUser(user), "")
 		err := json.Unmarshal(body, &resp)
@@ -122,66 +100,40 @@ func TestLogin(t *testing.T) {
 	}
 
 	// This should login success.
-	for _, user := range userOK {
+	for i, user := range validLoginUser {
 		var resp response
 		body := postJSON(t, "/login", mapUser(user), "")
 		err := json.Unmarshal(body, &resp)
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
 		require.Equal(http.StatusOK, resp.Code, "Login should return OK")
 		require.Empty(resp.Message, "message should empty")
-		require.Len(resp.Expire, 25, "expire time string should length 25")
-		require.Len(resp.Token, 156, "token length should be 156")
+		require.NotEmpty(resp.Expire, "Expire shouldn't empty")
+		require.NotEmpty(resp.Token, "Token shouldn't empty")
+		tokens[i] = resp.Token
 	}
 }
 
 func TestRefresh(t *testing.T) {
 	require := require.New(t)
 
-	// Login get token
-	tokens := make([]string, len(userOK))
-	for i, user := range userOK {
-		var resp response
-		body := postJSON(t, "/login", mapUser(user), "")
-		err := json.Unmarshal(body, &resp)
-		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
-		require.Equal(http.StatusOK, resp.Code, "Login should return OK")
-		require.Empty(resp.Message, "message should empty")
-		require.Len(resp.Expire, 25, "expire time string should length 25")
-		require.Len(resp.Token, 156, "token length should be 156")
-		tokens[i] = resp.Token
-	}
-
 	// Refresh token
-	for _, token := range tokens {
+	for i, token := range tokens {
 		var resp response
 		body := postJSON(t, "/refresh", nil, token)
 		err := json.Unmarshal(body, &resp)
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
 		require.Equal(http.StatusOK, resp.Code, "Refresh should return OK")
 		require.Empty(resp.Message, "message should empty")
-		require.Len(resp.Expire, 25, "expire time string should length 25")
-		require.Len(resp.Token, 156, "token length should be 156")
+		require.NotEmpty(resp.Expire, "Expire shouldn't empty")
+		require.NotEmpty(resp.Token, "Token shouldn't empty")
+		tokens[i] = resp.Token
 	}
 }
 
 func TestLogout(t *testing.T) {
 	require := require.New(t)
 
-	// Login get token
-	tokens := make([]string, len(userOK))
-	for i, user := range userOK {
-		var resp response
-		body := postJSON(t, "/login", mapUser(user), "")
-		err := json.Unmarshal(body, &resp)
-		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
-		require.Equal(http.StatusOK, resp.Code, "Login should return OK")
-		require.Empty(resp.Message, "message should empty")
-		require.Len(resp.Expire, 25, "expire time string should length 25")
-		require.Len(resp.Token, 156, "token length should be 156")
-		tokens[i] = resp.Token
-	}
-
-	// Refresh token
+	// Logout
 	for _, token := range tokens {
 		var resp response
 		body := postJSON(t, "/logout", nil, token)
@@ -194,22 +146,8 @@ func TestLogout(t *testing.T) {
 func TestGetMe(t *testing.T) {
 	require := require.New(t)
 
-	// Login get token
-	tokens := make([]string, len(userOK))
-	for i, user := range userOK {
-		var resp response
-		body := postJSON(t, "/login", mapUser(user), "")
-		err := json.Unmarshal(body, &resp)
-		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
-		require.Equal(http.StatusOK, resp.Code, "Login should return OK")
-		require.Empty(resp.Message, "message should empty")
-		require.Len(resp.Expire, 25, "expire time string should length 25")
-		require.Len(resp.Token, 156, "token length should be 156")
-		tokens[i] = resp.Token
-	}
-
 	// Get my info.
-	for i, user := range userOK {
+	for i, user := range validLoginUser {
 		var resp response
 		body := get(t, "/user/me", tokens[i])
 		err := json.Unmarshal(body, &resp)
@@ -224,22 +162,8 @@ func TestGetMe(t *testing.T) {
 func TestGetStreamKey(t *testing.T) {
 	require := require.New(t)
 
-	// Login get token
-	tokens := make([]string, len(userOK))
-	for i, user := range userOK {
-		var resp response
-		body := postJSON(t, "/login", mapUser(user), "")
-		err := json.Unmarshal(body, &resp)
-		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
-		require.Equal(http.StatusOK, resp.Code, "Login should return OK")
-		require.Empty(resp.Message, "message should empty")
-		require.Len(resp.Expire, 25, "expire time string should length 25")
-		require.Len(resp.Token, 156, "token length should be 156")
-		tokens[i] = resp.Token
-	}
-
 	// Get stream key
-	for i, user := range userOK {
+	for i, user := range validLoginUser {
 		var resp response
 		body := get(t, "/stream/key/"+user.Username, tokens[i])
 		err := json.Unmarshal(body, &resp)
@@ -250,10 +174,10 @@ func TestGetStreamKey(t *testing.T) {
 	}
 
 	// When username and token not match, key will not return
-	for i, user := range userOK {
+	for i, user := range validLoginUser {
 		var resp response
 		token := tokens[0]
-		if i < len(userOK)-1 {
+		if i < len(validLoginUser)-1 {
 			token = tokens[i+1]
 		}
 		body := get(t, "/stream/key/"+user.Username, token)
@@ -300,7 +224,7 @@ func postForm(t *testing.T, uri string, form url.Values, token string) []byte {
 	} else {
 		req = httptest.NewRequest("POST", uri, nil)
 	}
-	
+
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if token != "" {
 		req.Header.Set("Authorization", "MiniTube "+token)
@@ -333,21 +257,95 @@ func get(t *testing.T, uri string, token string) []byte {
 	return body
 }
 
-func mapUser(user *entities.User) map[string]string {
-	return map[string]string{
-		"username": user.Username,
-		"password": user.Password,
+func mapUser(u interface{}) map[string]string {
+	if user, ok := u.(*models.LoginModel); ok {
+		return map[string]string{
+			"username": user.Username,
+			"password": user.Password,
+			"email":    user.Email,
+			"phone":    user.PhoneNumber,
+		}
 	}
+	if user, ok := u.(*models.RegisterModel); ok {
+		return map[string]string{
+			"username": user.Username,
+			"password": user.Password,
+			"email":    user.Email,
+			"phone":    user.PhoneNumber,
+		}
+	}
+	return nil
 }
 
-func valUser(user *entities.User) url.Values {
-	return url.Values{
-		"username": []string{user.Username},
-		"password": []string{user.Password},
+func valUser(u interface{}) url.Values {
+	if user, ok := u.(*models.LoginModel); ok {
+		return url.Values{
+			"username": []string{user.Username},
+			"password": []string{user.Password},
+			"email":    []string{user.Email},
+			"phone":    []string{user.PhoneNumber},
+		}
 	}
+	if user, ok := u.(*models.RegisterModel); ok {
+		return url.Values{
+			"username": []string{user.Username},
+			"password": []string{user.Password},
+			"email":    []string{user.Email},
+			"phone":    []string{user.PhoneNumber},
+		}
+	}
+	return nil
+}
+
+func createUserForTest() {
+	invalidRegister = []*models.RegisterModel{
+		{},
+		{Username: "1"},
+		{Password: "1"},
+		{Email: "a@b.com"},
+		{PhoneNumber: "13668686868"},
+		{Username: "1@1", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
+		{Username: "1234567890123456789 ", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
+		{Username: "123456789012345678900", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
+		{Username: "12345678901234567890", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba15713"},
+		{Username: "12345678901234567890", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba1571321"},
+		{Username: "12345678901234567890", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157@3"},
+	}
+	invalidLoginUser = []*models.LoginModel{
+		{},
+		{Username: "1"},
+		{Password: "1"},
+		{Email: "a@b.com"},
+		{PhoneNumber: "+8613668686868"},
+		{Username: "1@1", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
+		{Username: "1234567890123456789 ", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
+		{Username: "123456789012345678900", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
+		{Username: "12345678901234567890", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba15713"},
+		{Username: "12345678901234567890", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba1571321"},
+		{Username: "12345678901234567890", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157@3"},
+	}
+	wrongLoginUser = []*models.LoginModel{
+		{Username: "111", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
+		{Username: "112", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
+		{Username: "121", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157131"},
+		{Username: "122", Password: "fca26135ea43ad0ba904e62c85793768e4c9a136d2660bb2b45952ad445f5921"},
+	}
+	validLoginUser = []*models.LoginModel{
+		{Username: "121", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
+		{Username: "122", Password: "fca26135ea43ad0ba904e62c85793768e4c9a136d2660bb2b15952ad445f5921"},
+	}
+	validRegister = []*models.RegisterModel{
+		{Username: "121", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
+		{Username: "122", Password: "fca26135ea43ad0ba904e62c85793768e4c9a136d2660bb2b15952ad445f5921"},
+		{Username: "123", Email: "123@minitube.com", Password: "fca26135ea43ad0ba904e62c85793768e4c9af40f9ca54bdec34843eba157132"},
+		{Username: "124", PhoneNumber: "+8612468686868", Password: "fca26135ea43ad0ba9f40f9ca54bdec34843eba157132bb2b15952ad445f5921"},
+		{Username: "125", Email: "125@minitube.com", PhoneNumber: "+8612568686868",Password: "fca261f40f9ca54bdec34843eba1571324c9a136d2660bb2b15952ad445f5921"},
+	}
+	tokens = make([]string, len(validLoginUser))
 }
 
 func TestMain(m *testing.M) {
+	createUserForTest()
 	gin.SetMode(gin.TestMode)
 	os.Exit(m.Run())
 }

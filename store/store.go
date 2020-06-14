@@ -3,7 +3,7 @@ package store
 import (
 	"errors"
 	"fmt"
-	"minitube/entities"
+	"minitube/models"
 	"minitube/utils"
 	"time"
 )
@@ -22,7 +22,7 @@ var (
 )
 
 // GetUserByUsername - get user from store by username.
-func GetUserByUsername(username string) (*entities.User, error) {
+func GetUserByUsername(username string) (*models.User, error) {
 	user, errRedis := getUserByUsernameFromRedis(username)
 	if errRedis == nil {
 		return user, nil
@@ -41,7 +41,7 @@ func GetUserByUsername(username string) (*entities.User, error) {
 }
 
 // SaveUser - store user to mysql and redis
-func SaveUser(user *entities.User) error {
+func SaveUser(user *models.User) error {
 	err := saveUserToMysql(user)
 	if err != nil {
 		return err
@@ -53,10 +53,8 @@ func SaveUser(user *entities.User) error {
 	return nil
 }
 
-// CloseAll - close redis client and
-// mysql connection pool and mysql statement.
+// CloseAll - close redis client and mysql connection.
 func CloseAll() {
 	redisClient.Close()
-	userQueryStmt.Close()
-	mysqlPool.Close()
+	db.Close()
 }
