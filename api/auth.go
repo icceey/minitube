@@ -42,11 +42,19 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 			log.Debug(err)
 			return nil, jwt.ErrFailedAuthentication
 		}
-		username := loginUser.Username
-		password := loginUser.Password
 
 		log.Debugf("User %#v is logining in.", loginUser)
-		user, err := store.GetUserByUsername(username)
+		var user *models.User
+		var err error
+		if username := loginUser.Username; username != "" {
+			user, err = store.GetUserByUsername(username)
+		} else if email := loginUser.Email; email != "" {
+			user, err = store.GetUserByEmail(email)
+		} else if phone := loginUser.PhoneNumber; phone != "" {
+			user, err = store.GetUserByPhoneNumber(phone)
+		} else {
+			err = errors.New("Login validator has some error")
+		}
 		if err != nil {
 			if errors.Is(err, store.ErrMySQLUserNotExists) {
 				return nil, jwt.ErrFailedAuthentication
@@ -55,7 +63,8 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 			return nil, err
 		}
 
-		log.Debugf("User %#v need auth to %#v", loginUser, user)
+		// log.Debugf("User %#v need auth to %#v", loginUser, user)
+		password := loginUser.Password
 		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 		if err == nil {
 			log.Debugf("User %#v auth success", user)

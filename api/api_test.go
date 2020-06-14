@@ -147,7 +147,7 @@ func TestGetMe(t *testing.T) {
 	require := require.New(t)
 
 	// Get my info.
-	for i, user := range validLoginUser {
+	for i, user := range validRegister {
 		var resp response
 		body := get(t, "/user/me", tokens[i])
 		err := json.Unmarshal(body, &resp)
@@ -163,7 +163,7 @@ func TestGetStreamKey(t *testing.T) {
 	require := require.New(t)
 
 	// Get stream key
-	for i, user := range validLoginUser {
+	for i, user := range validRegister {
 		var resp response
 		body := get(t, "/stream/key/"+user.Username, tokens[i])
 		err := json.Unmarshal(body, &resp)
@@ -174,12 +174,11 @@ func TestGetStreamKey(t *testing.T) {
 	}
 
 	// When username and token not match, key will not return
-	for i, user := range validLoginUser {
+	for i, user := range validRegister {
 		var resp response
 		token := tokens[0]
-		if i < len(validLoginUser)-1 {
-			token = tokens[i+1]
-		}
+		num := len(validRegister)
+		token = tokens[(i+3)%num]
 		body := get(t, "/stream/key/"+user.Username, token)
 		err := json.Unmarshal(body, &resp)
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
@@ -333,13 +332,18 @@ func createUserForTest() {
 	validLoginUser = []*models.LoginModel{
 		{Username: "121", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
 		{Username: "122", Password: "fca26135ea43ad0ba904e62c85793768e4c9a136d2660bb2b15952ad445f5921"},
+		{Email: "123@minitube.com", Password: "fca26135ea43ad0ba904e62c85793768e4c9af40f9ca54bdec34843eba157132"},
+		{PhoneNumber: "+8612468686868", Password: "fca26135ea43ad0ba9f40f9ca54bdec34843eba157132bb2b15952ad445f5921"},
+		{Username: "125", Password: "fca261f40f9ca54bdec34843eba1571324c9a136d2660bb2b15952ad445f5921"},
+		{Email: "125@minitube.com", Password: "fca261f40f9ca54bdec34843eba1571324c9a136d2660bb2b15952ad445f5921"},
+		{PhoneNumber: "+8612568686868", Password: "fca261f40f9ca54bdec34843eba1571324c9a136d2660bb2b15952ad445f5921"},
 	}
 	validRegister = []*models.RegisterModel{
 		{Username: "121", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
 		{Username: "122", Password: "fca26135ea43ad0ba904e62c85793768e4c9a136d2660bb2b15952ad445f5921"},
 		{Username: "123", Email: "123@minitube.com", Password: "fca26135ea43ad0ba904e62c85793768e4c9af40f9ca54bdec34843eba157132"},
 		{Username: "124", PhoneNumber: "+8612468686868", Password: "fca26135ea43ad0ba9f40f9ca54bdec34843eba157132bb2b15952ad445f5921"},
-		{Username: "125", Email: "125@minitube.com", PhoneNumber: "+8612568686868",Password: "fca261f40f9ca54bdec34843eba1571324c9a136d2660bb2b15952ad445f5921"},
+		{Username: "125", Email: "125@minitube.com", PhoneNumber: "+8612568686868", Password: "fca261f40f9ca54bdec34843eba1571324c9a136d2660bb2b15952ad445f5921"},
 	}
 	tokens = make([]string, len(validLoginUser))
 }

@@ -59,13 +59,25 @@ func pingMySQL() error {
 }
 
 func getUserByUsernameFromMysql(username string) (*models.User, error) {
+	return getUserFromMysqlBy("username", username)
+}
+
+func getUserByEmailFromMysql(email string) (*models.User, error) {
+	return getUserFromMysqlBy("email", email)
+}
+
+func getUserByPhoneFromMysql(phone string) (*models.User, error) {
+	return  getUserFromMysqlBy("phone_number", phone)
+}
+
+func getUserFromMysqlBy(by, value string) (*models.User, error) {
 	user := new(models.User)
-	err := db.Where("username = ?", username).Take(user).Error
+	err := db.Where(by + " = ?", value).Take(user).Error
 	if err != nil {
 		if gorm.IsRecordNotFoundError(err) {
 			return nil, ErrMySQLUserNotExists
 		}
-		log.Warnf("Get user %v from Mysql failed: %v", username, err)
+		log.Warnf("Get user %v from Mysql failed: %v", value, err)
 		return nil, ErrMySQLFailed
 	}
 	return user, nil

@@ -10,7 +10,7 @@ import (
 
 var log = utils.Sugar
 
-var timeout = 400 * time.Millisecond
+var timeout = 600 * time.Millisecond
 
 // store's error
 var (
@@ -35,6 +35,24 @@ func GetUserByUsername(username string) (*models.User, error) {
 				log.Warnf("User %#v found in mysql, but store to redis failed: ", err)
 			}
 		}
+		return user, nil
+	}
+	return nil, errMysql
+}
+
+// GetUserByEmail - get user from store by email.
+func GetUserByEmail(email string) (*models.User, error) {
+	user, errMysql := getUserByEmailFromMysql(email)
+	if errMysql == nil {
+		return user, nil
+	}
+	return nil, errMysql
+}
+
+// GetUserByPhoneNumber - get user from store by phone number.
+func GetUserByPhoneNumber(phoneNumber string) (*models.User, error) {
+	user, errMysql := getUserByPhoneFromMysql(phoneNumber)
+	if errMysql == nil {
 		return user, nil
 	}
 	return nil, errMysql
