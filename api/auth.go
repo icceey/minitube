@@ -50,8 +50,8 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 			user, err = store.GetUserByUsername(username)
 		} else if email := loginUser.Email; email != "" {
 			user, err = store.GetUserByEmail(email)
-		} else if phone := loginUser.PhoneNumber; phone != "" {
-			user, err = store.GetUserByPhoneNumber(phone)
+		} else if phone := loginUser.Phone; phone != "" {
+			user, err = store.GetUserByPhone(phone)
 		} else {
 			err = errors.New("Login validator has some error")
 		}

@@ -7,10 +7,10 @@ import (
 // User - minitube user
 type User struct {
 	gorm.Model
-	Username    string  `gorm:"type:varchar(20);unique_index;not null"`
-	Password    string  `gorm:"type:char(64);not null"`
-	Email       *string `gorm:"type:varchar(50);unique"`
-	PhoneNumber *string `gorm:"type:varchar(20);unique"`
+	Username string  `gorm:"type:varchar(20);unique_index;not null"`
+	Password string  `gorm:"type:char(64);not null"`
+	Email    *string `gorm:"type:varchar(50);unique_index"`
+	Phone    *string `gorm:"type:varchar(20);unique_index"`
 }
 
 // NewUser - return a user by username and password
@@ -31,7 +31,7 @@ func NewUserFromMap(mp map[string]string) *User {
 	if v, ok := mp["email"]; ok {
 		user.Email = &v
 	}
-	if v, ok := mp["phoneNumber"]; ok {
+	if v, ok := mp["phone"]; ok {
 		user.Email = &v
 	}
 	return user
@@ -43,8 +43,8 @@ func NewUserFromRegister(reg *RegisterModel) *User {
 	if reg.Email != "" {
 		user.Email = &reg.Email
 	}
-	if reg.PhoneNumber != "" {
-		user.PhoneNumber = &reg.PhoneNumber
+	if reg.Phone != "" {
+		user.Phone = &reg.Phone
 	}
 	return user
 }

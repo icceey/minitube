@@ -262,7 +262,7 @@ func mapUser(u interface{}) map[string]string {
 			"username": user.Username,
 			"password": user.Password,
 			"email":    user.Email,
-			"phone":    user.PhoneNumber,
+			"phone":    user.Phone,
 		}
 	}
 	if user, ok := u.(*models.RegisterModel); ok {
@@ -270,7 +270,7 @@ func mapUser(u interface{}) map[string]string {
 			"username": user.Username,
 			"password": user.Password,
 			"email":    user.Email,
-			"phone":    user.PhoneNumber,
+			"phone":    user.Phone,
 		}
 	}
 	return nil
@@ -282,7 +282,7 @@ func valUser(u interface{}) url.Values {
 			"username": []string{user.Username},
 			"password": []string{user.Password},
 			"email":    []string{user.Email},
-			"phone":    []string{user.PhoneNumber},
+			"phone":    []string{user.Phone},
 		}
 	}
 	if user, ok := u.(*models.RegisterModel); ok {
@@ -290,7 +290,7 @@ func valUser(u interface{}) url.Values {
 			"username": []string{user.Username},
 			"password": []string{user.Password},
 			"email":    []string{user.Email},
-			"phone":    []string{user.PhoneNumber},
+			"phone":    []string{user.Phone},
 		}
 	}
 	return nil
@@ -302,7 +302,7 @@ func createUserForTest() {
 		{Username: "1"},
 		{Password: "1"},
 		{Email: "a@b.com"},
-		{PhoneNumber: "13668686868"},
+		{Phone: "13668686868"},
 		{Username: "1@1", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
 		{Username: "1234567890123456789 ", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
 		{Username: "123456789012345678900", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
@@ -315,7 +315,7 @@ func createUserForTest() {
 		{Username: "1"},
 		{Password: "1"},
 		{Email: "a@b.com"},
-		{PhoneNumber: "+8613668686868"},
+		{Phone: "+8613668686868"},
 		{Username: "1@1", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
 		{Username: "1234567890123456789 ", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
 		{Username: "123456789012345678900", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
@@ -333,17 +333,17 @@ func createUserForTest() {
 		{Username: "121", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
 		{Username: "122", Password: "fca26135ea43ad0ba904e62c85793768e4c9a136d2660bb2b15952ad445f5921"},
 		{Email: "123@minitube.com", Password: "fca26135ea43ad0ba904e62c85793768e4c9af40f9ca54bdec34843eba157132"},
-		{PhoneNumber: "+8612468686868", Password: "fca26135ea43ad0ba9f40f9ca54bdec34843eba157132bb2b15952ad445f5921"},
+		{Phone: "+8612468686868", Password: "fca26135ea43ad0ba9f40f9ca54bdec34843eba157132bb2b15952ad445f5921"},
 		{Username: "125", Password: "fca261f40f9ca54bdec34843eba1571324c9a136d2660bb2b15952ad445f5921"},
 		{Email: "125@minitube.com", Password: "fca261f40f9ca54bdec34843eba1571324c9a136d2660bb2b15952ad445f5921"},
-		{PhoneNumber: "+8612568686868", Password: "fca261f40f9ca54bdec34843eba1571324c9a136d2660bb2b15952ad445f5921"},
+		{Phone: "+8612568686868", Password: "fca261f40f9ca54bdec34843eba1571324c9a136d2660bb2b15952ad445f5921"},
 	}
 	validRegister = []*models.RegisterModel{
 		{Username: "121", Password: "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
 		{Username: "122", Password: "fca26135ea43ad0ba904e62c85793768e4c9a136d2660bb2b15952ad445f5921"},
 		{Username: "123", Email: "123@minitube.com", Password: "fca26135ea43ad0ba904e62c85793768e4c9af40f9ca54bdec34843eba157132"},
-		{Username: "124", PhoneNumber: "+8612468686868", Password: "fca26135ea43ad0ba9f40f9ca54bdec34843eba157132bb2b15952ad445f5921"},
-		{Username: "125", Email: "125@minitube.com", PhoneNumber: "+8612568686868", Password: "fca261f40f9ca54bdec34843eba1571324c9a136d2660bb2b15952ad445f5921"},
+		{Username: "124", Phone: "+8612468686868", Password: "fca26135ea43ad0ba9f40f9ca54bdec34843eba157132bb2b15952ad445f5921"},
+		{Username: "125", Email: "125@minitube.com", Phone: "+8612568686868", Password: "fca261f40f9ca54bdec34843eba1571324c9a136d2660bb2b15952ad445f5921"},
 	}
 	tokens = make([]string, len(validLoginUser))
 }

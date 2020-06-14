@@ -115,7 +115,7 @@ func createUserForTest() {
 			}
 			if j%5 == 2 || j%5 == 3 {
 				phone := strconv.FormatInt(phone, 10)
-				user.PhoneNumber = &phone
+				user.Phone = &phone
 			}
 			users = append(users, user)
 			phone++
