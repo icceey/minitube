@@ -93,6 +93,19 @@ func SaveUser(user *models.User) error {
 	return nil
 }
 
+// UpdateUserProfile - update user profile
+func UpdateUserProfile(username string, profile *models.ChangeProfileModel) error {
+	err := updateUserProfileToMysql(username, profile)
+	if err != nil {
+		return err
+	}
+	err = updateUserProfileToRedis(username, profile)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // CloseAll - close redis client and mysql connection.
 func CloseAll() {
 	redisClient.Close()

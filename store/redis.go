@@ -107,6 +107,7 @@ func saveUserToRedis(user *models.User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
 	defer cancel()
 	userBytes, err := json.Marshal(user)
+	log.Debug("Save user redis ", string(userBytes))
 	if err != nil {
 		log.Warnf("Marshal user %#v error: %v", user, err)
 		return err
@@ -131,6 +132,44 @@ func saveUserToRedis(user *models.User) error {
 		}
 	}
 	return nil
+}
+
+func updateUserProfileToRedis(username string, profile *models.ChangeProfileModel) error {
+	log.Debug("updateUserProfileToRedis")
+	user, err := GetUserByUsername(username)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
+	defer cancel()
+
+	log.Debug("del email key")
+	err = redisClient.Del(ctx, wrapEmailKey(username)).Err()
+	if err != nil {
+		return err
+	}
+	if profile.Email == "" {
+		user.Email = nil
+	} else {
+		user.Email = &profile.Email
+	}
+	log.Debug("del phone key")
+	err = redisClient.Del(ctx, wrapPhoneKey(username)).Err()
+	if err != nil {
+		return err
+	}
+	if profile.Phone == "" {
+		user.Phone = nil
+	} else {
+		user.Phone = &profile.Phone
+	}
+	
+	if profile.LiveName == "" {
+		user.LiveName = nil
+	} else {
+		user.LiveName = &profile.LiveName
+	}
+	return saveUserToRedis(user)
 }
 
 func wrapUserKey(key string) string {

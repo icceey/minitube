@@ -15,28 +15,18 @@ import (
 var db *gorm.DB
 
 func init() {
-	log.Info("Initialize mysql connection pool...")
 	var err error
 	dataSourceName := fmt.Sprintf("%v:%v@tcp(%v)/%v?charset=utf8&parseTime=True&loc=Local",
 		os.Getenv("MYSQL_USER"), os.Getenv("MYSQL_PASSWORD"), os.Getenv("MYSQL_ADDR"), os.Getenv("MYSQL_DATABASE"))
-	db, err = gorm.Open("mysql", dataSourceName)
-	if err != nil {
-		log.Fatal("MySQL open failed: ", err)
-	}
 
-	db.SingularTable(true)
-	db.DB().SetConnMaxLifetime(0)
-	db.DB().SetMaxIdleConns(3)
-	db.DB().SetMaxOpenConns(3)
-
-	log.Info("Checking MySQL service...")
+	log.Info("Connect to MySQL service...")
 	retry, interval := 5, 10
 	for i := 0; i < retry; i++ {
-		err = pingMySQL()
+		db, err = gorm.Open("mysql", dataSourceName)
 		if err == nil {
 			break
 		}
-		errMsg := fmt.Sprintf("Ping MySQL failed %v times, ", i+1)
+		errMsg := fmt.Sprintf("Connect to MySQL failed %v times, ", i+1)
 		if i == retry-1 {
 			errMsg += "maybe some errors have occurred."
 			log.Fatal(errMsg, "MySQL service access failed: ", err)
@@ -47,7 +37,16 @@ func init() {
 		}
 	}
 
+	db.SingularTable(true)
+	db.DB().SetConnMaxLifetime(0)
+	db.DB().SetMaxIdleConns(3)
+	db.DB().SetMaxOpenConns(3)
+
 	db.AutoMigrate(&models.User{})
+
+	if debug := os.Getenv("DEBUG"); debug == "true" {
+		db = db.Debug()
+	}
 
 	log.Info("MySQL is OK.")
 }
@@ -92,6 +91,15 @@ func saveUserToMysql(user *models.User) error {
 			return err
 		}
 		return nil
+	}
+	return nil
+}
+
+func updateUserProfileToMysql(username string, profile *models.ChangeProfileModel) error {
+	err := db.Model(models.User{}).Where("username = ?", username).Updates(profile.Map()).Error
+	if err != nil {
+		log.Warnf("Update user<%v> profile to %#v Mysql failed: %v", username, profile, err)
+		return err
 	}
 	return nil
 }

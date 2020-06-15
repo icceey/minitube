@@ -24,6 +24,7 @@ var (
 	wrongLoginUser   []*models.LoginModel
 	validRegister    []*models.RegisterModel
 	validLoginUser   []*models.LoginModel
+	changeProfile    []map[string]string
 	tokens           []string
 )
 
@@ -186,6 +187,50 @@ func TestGetStreamKey(t *testing.T) {
 	}
 }
 
+func TestUpdateUserProfile(t *testing.T) {
+	require := require.New(t)
+
+	for i := range validRegister {
+		var resp response
+		body := postJSON(t, "/user/profile", changeProfile[i], tokens[i])
+		err := json.Unmarshal(body, &resp)
+		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
+		require.Equal(http.StatusOK, resp.Code, "Get stream key should return OK")
+		require.Equal("OK", resp.Message, "message should be OK")
+	}
+
+	for i, user := range validRegister {
+		var resp response
+		body := get(t, "/user/me", tokens[i])
+		err := json.Unmarshal(body, &resp)
+		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
+		require.Equal(http.StatusOK, resp.Code, "Get Info should return OK")
+		require.Equal(user.Username, resp.User.Username, "Username Not Equal.")
+		if v, ok := changeProfile[i]["email"]; ok {
+			if v == "" {
+				require.Nil(resp.User.Email, "Email has deleted, should nil.")
+			} else {
+				require.Equal(v, *resp.User.Email, "Email has changed, should equal.")
+			}
+		}
+		if v, ok := changeProfile[i]["phone"]; ok {
+			if v == "" {
+				require.Nil(resp.User.Phone, "Phone has deleted, should nil.")
+			} else {
+				require.Equal(v, *resp.User.Phone, "Phone has changed, should equal.")
+			}
+		}
+		if v, ok := changeProfile[i]["live_name"]; ok {
+			if v == "" {
+				require.Nil(resp.User.LiveName, "LiveName has deleted, should nil.")
+			} else {
+				require.Equal(v, *resp.User.LiveName, "LiveName has changed, should equal.")
+			}
+		}
+	}
+
+}
+
 func postJSON(t *testing.T, uri string, mp map[string]string, token string) []byte {
 	rec := httptest.NewRecorder()
 
@@ -344,6 +389,13 @@ func createUserForTest() {
 		{Username: "123", Email: "123@minitube.com", Password: "fca26135ea43ad0ba904e62c85793768e4c9af40f9ca54bdec34843eba157132"},
 		{Username: "124", Phone: "+8612468686868", Password: "fca26135ea43ad0ba9f40f9ca54bdec34843eba157132bb2b15952ad445f5921"},
 		{Username: "125", Email: "125@minitube.com", Phone: "+8612568686868", Password: "fca261f40f9ca54bdec34843eba1571324c9a136d2660bb2b15952ad445f5921"},
+	}
+	changeProfile = []map[string]string{
+		{"email": "121@minitube.com"},
+		{"phone": "+1123456789"},
+		{"live_name": "123's living room"},
+		{"email": "124@minitube.com", "phone": ""},
+		{"phone": "", "email": "", "live_name": "125's living room"},
 	}
 	tokens = make([]string, len(validLoginUser))
 }

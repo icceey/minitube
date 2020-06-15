@@ -62,6 +62,7 @@ func init() {
 	userGroup := Router.Group("/user")
 	userGroup.Use(authMiddleware.MiddlewareFunc())
 	userGroup.GET("/me", getMe)
+	userGroup.POST("/profile", updateUserProfile)
 
 	streamGroup := Router.Group("/stream")
 	streamGroup.Use(authMiddleware.MiddlewareFunc())
@@ -70,15 +71,8 @@ func init() {
 }
 
 func getMe(c *gin.Context) {
-	claims := middleware.ExtractClaims(c)
-
-	i, exists := claims[authMiddleware.IdentityKey]
-	username, ok := i.(string)
-	if !exists || !ok {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    http.StatusBadRequest,
-			"message": "Bad Token.",
-		})
+	username, ok := getUsername(c)
+	if !ok {
 		return
 	}
 
@@ -188,4 +182,58 @@ func getStreamKeyFromLive(c *gin.Context, username string) string {
 	str := string(resBytes)
 	key := str[strings.LastIndexByte(str, ':')+2 : len(str)-2]
 	return key
+}
+
+func updateUserProfile(c *gin.Context) {
+	username, ok := getUsername(c)
+	if !ok {
+		return
+	}
+
+	profile := new(models.ChangeProfileModel)
+	if err := c.ShouldBind(profile); err != nil {
+		log.Debug(err)
+		c.JSON(http.StatusNotAcceptable, gin.H{
+			"code":    http.StatusNotAcceptable,
+			"message": "invalid felid",
+		})
+		return
+	}
+
+	err := store.UpdateUserProfile(username, profile)
+	if err != nil {
+		if errors.Is(err, store.ErrRedisUserNotExists) || errors.Is(err, store.ErrMySQLUserNotExists) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code":    http.StatusBadRequest,
+				"message": "Username not exists",
+			})
+			return
+		}
+		c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    http.StatusInternalServerError,
+			"message": "Server Error.",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    http.StatusOK,
+		"message": "OK",
+	})
+}
+
+func getUsername(c *gin.Context) (string, bool) {
+	claims := middleware.ExtractClaims(c)
+
+	i, exists := claims[authMiddleware.IdentityKey]
+	username, ok := i.(string)
+	if !exists || !ok {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    http.StatusBadRequest,
+			"message": "Bad Token.",
+		})
+		return "", false
+	}
+	return username, true
 }

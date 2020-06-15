@@ -99,6 +99,86 @@ func TestStoreUser(t *testing.T) {
 	checkUserInMySQL(t, 20, 30)
 }
 
+func TestUpdateUserProfileToMysql(t *testing.T) {
+	require := require.New(t)
+	for i := 0; i < 10; i++ {
+		profile := new(models.ChangeProfileModel)
+		profile.Email = "0" + strconv.Itoa(i) + "@minitube.com"
+		profile.Phone = "+11370000000" + strconv.Itoa(i)
+		profile.LiveName = strconv.Itoa(i) + "'s living room"
+		err := updateUserProfileToMysql(users[i].Username, profile)
+		require.NoError(err, "update shouldn't error")
+		users[i].Email = &profile.Email
+		users[i].Phone = &profile.Phone
+		users[i].LiveName = &profile.LiveName
+	}
+	checkUserInMySQL(t, 0, 10)
+	t.Log("Test clear profile")
+	for i := 0; i < 10; i++ {
+		profile := new(models.ChangeProfileModel)
+		err := updateUserProfileToMysql(users[i].Username, profile)
+		require.NoError(err, "update shouldn't error")
+		users[i].Email = nil
+		users[i].Phone = nil
+		users[i].LiveName = nil
+	}
+	checkUserInMySQL(t, 0, 10)
+}
+
+func TestUpdateUserProfileToRedis(t *testing.T) {
+	require := require.New(t)
+	for i := 0; i < 10; i++ {
+		profile := new(models.ChangeProfileModel)
+		profile.Email = "0" + strconv.Itoa(i) + "@minitube.com"
+		profile.Phone = "+11370000000" + strconv.Itoa(i)
+		profile.LiveName = strconv.Itoa(i) + "'s living room"
+		err := updateUserProfileToRedis(users[i].Username, profile)
+		require.NoError(err, "update shouldn't error")
+		users[i].Email = &profile.Email
+		users[i].Phone = &profile.Phone
+		users[i].LiveName = &profile.LiveName
+	}
+	checkUserInRedis(t, 0, 10)
+	t.Log("Test clear profile")
+	for i := 0; i < 10; i++ {
+		profile := new(models.ChangeProfileModel)
+		err := updateUserProfileToRedis(users[i].Username, profile)
+		require.NoError(err, "update shouldn't error")
+		users[i].Email = nil
+		users[i].Phone = nil
+		users[i].LiveName = nil
+	}
+	checkUserInRedis(t, 0, 10)
+}
+
+func TestUpdateUserProfile(t *testing.T) {
+	require := require.New(t)
+	for i := 0; i < 10; i++ {
+		profile := new(models.ChangeProfileModel)
+		profile.Email = "0" + strconv.Itoa(i) + "@minitube.com"
+		profile.Phone = "+11370000000" + strconv.Itoa(i)
+		profile.LiveName = strconv.Itoa(i) + "'s living room"
+		err := UpdateUserProfile(users[i].Username, profile)
+		require.NoError(err, "update shouldn't error")
+		users[i].Email = &profile.Email
+		users[i].Phone = &profile.Phone
+		users[i].LiveName = &profile.LiveName
+	}
+	checkUserInRedis(t, 0, 10)
+	checkUserInMySQL(t, 0, 10)
+	t.Log("Test clear profile")
+	for i := 0; i < 10; i++ {
+		profile := new(models.ChangeProfileModel)
+		err := UpdateUserProfile(users[i].Username, profile)
+		require.NoError(err, "update shouldn't error")
+		users[i].Email = nil
+		users[i].Phone = nil
+		users[i].LiveName = nil
+	}
+	checkUserInRedis(t, 0, 10)
+	checkUserInMySQL(t, 0, 10)
+}
+
 func createUserForTest() {
 	users = make([]*models.User, 0, 50)
 	phone := int64(13688866600)
