@@ -93,11 +93,9 @@ func getMe(c *gin.Context) {
 		return
 	}
 
-	// Don't return password.
-	user.Password = ""
 	c.JSON(http.StatusOK, gin.H{
 		"code": http.StatusOK,
-		"user": user,
+		"user": models.GetMeFromUser(user),
 	})
 }
 

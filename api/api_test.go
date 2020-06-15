@@ -37,7 +37,7 @@ type response struct {
 
 	Key string
 
-	User *models.User
+	User *models.Me
 }
 
 var (
@@ -155,7 +155,6 @@ func TestGetMe(t *testing.T) {
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
 		require.Equal(http.StatusOK, resp.Code, "Get Info should return OK")
 		require.Equal(user.Username, resp.User.Username, "Username Not Equal.")
-		require.Empty(resp.User.Password, "Password should empty.")
 	}
 
 }

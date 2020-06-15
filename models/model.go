@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 // RegisterModel - register request model
 type RegisterModel struct {
 	Username string `form:"username" json:"username" binding:"required,alphanum,min=1,max=20"`
@@ -42,4 +44,28 @@ func (m *ChangeProfileModel) Map() map[string]interface{} {
 		mp["live_name"] = nil
 	}
 	return mp
+}
+
+// Me - getMe respone model
+type Me struct {
+	ID        uint      `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Username  string    `json:"username"`
+	Email     *string   `json:"email"`
+	Phone     *string   `json:"phone"`
+	LiveName  *string   `json:"live_name"`
+}
+
+// GetMeFromUser - get Me from User
+func GetMeFromUser(user *User) *Me {
+	return &Me{
+		ID: user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Username: user.Username,
+		Email: user.Email,
+		Phone: user.Phone,
+		LiveName: user.LiveName,
+	}
 }
