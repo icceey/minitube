@@ -7,11 +7,11 @@ import (
 // User - minitube user
 type User struct {
 	gorm.Model
-	Username string  `gorm:"type:varchar(20);unique_index;not null"`
-	Password string  `gorm:"type:char(64);not null"`
-	Email    *string `gorm:"type:varchar(50);unique_index"`
-	Phone    *string `gorm:"type:varchar(18);unique_index"`
-	LiveName *string `gorm:"type:varchar(30)"`
+	Username string  `json:"username"  gorm:"type:varchar(20);unique_index;not null"`
+	Password string  `json:"password"  gorm:"type:char(64);not null"`
+	Email    *string `json:"email"     gorm:"type:varchar(50);unique_index"`
+	Phone    *string `json:"phone"     gorm:"type:varchar(18);unique_index"`
+	LiveName *string `json:"live_name" gorm:"type:varchar(30)"`
 }
 
 // NewUser - return a user by username and password
