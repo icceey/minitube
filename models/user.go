@@ -1,12 +1,15 @@
 package models
 
-import (
-	"github.com/jinzhu/gorm"
-)
+import "time"
 
 // User - minitube user
 type User struct {
-	gorm.Model
+	// Not use gorm.Model, in order to use json tag.
+	ID        uint       `json:"id" gorm:"primary_key"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at" sql:"index"`
+
 	Username string  `json:"username"  gorm:"type:varchar(20);unique_index;not null"`
 	Password string  `json:"password"  gorm:"type:char(64);not null"`
 	Email    *string `json:"email"     gorm:"type:varchar(50);unique_index"`
