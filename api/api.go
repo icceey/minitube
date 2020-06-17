@@ -33,26 +33,30 @@ func init() {
 	Router.Use(middleware.Ginzap(utils.Logger, time.RFC3339, true))
 	Router.Use(middleware.RecoveryWithZap(utils.Logger, true))
 
-	// Router.LoadHTMLFiles("./out/index.html", "./out/live.html",
-	// 	"./out/login.html", "./out/register.html", "./out/404.html")
-	// Router.Static("/_next/static", "./out/_next/static")
-	// Router.StaticFile("/favicon.ico", "./out/favicon.ico")
+	Router.LoadHTMLFiles("./out/index.html", "./out/watch.html",
+		"./out/login.html", "./out/register.html", "./out/404.html")
+	Router.Static("/_next/static", "./out/_next/static")
+	Router.StaticFile("/favicon.ico", "./out/favicon.ico")
 
-	// Router.GET("/", func(c *gin.Context) {
-	// 	c.HTML(http.StatusOK, "index.html", nil)
-	// })
-	// Router.GET("/index", func(c *gin.Context) {
-	// 	c.HTML(http.StatusOK, "index.html", nil)
-	// })
-	// Router.GET("/login", func(c *gin.Context) {
-	// 	c.HTML(http.StatusOK, "login.html", nil)
-	// })
-	// Router.GET("/register", func(c *gin.Context) {
-	// 	c.HTML(http.StatusOK, "register.html", nil)
-	// })
-	// Router.GET("/live/:username", func(c *gin.Context) {
-	// 	c.HTML(http.StatusOK, "live.html", nil)
-	// })
+	Router.GET("/", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "index.html", nil)
+	})
+	Router.GET("/index", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "index.html", nil)
+	})
+	Router.GET("/login", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "login.html", nil)
+	})
+	Router.GET("/register", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "register.html", nil)
+	})
+	Router.GET("/live/:username", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "watch.html", nil)
+	})
+	Router.NoRoute(func (c *gin.Context) {
+		c.HTML(http.StatusNotFound, "404.html", nil)
+	})
+
 
 	Router.POST("/register", register)
 	Router.POST("/login", authMiddleware.LoginHandler)
