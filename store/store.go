@@ -123,6 +123,6 @@ func UpdateUserProfile(id uint, profile *models.ChangeProfileModel) error {
 
 // CloseAll - close redis client and mysql connection.
 func CloseAll() {
-	redisClient.Close()
+	client.Close()
 	db.Close()
 }

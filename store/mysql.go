@@ -75,9 +75,11 @@ func getUserByIDFromMysql(id uint) (*models.User, error) {
 }
 
 func getUserFromMysqlBy(by string, value interface{}) (*models.User, error) {
+	tx := db.Begin()
 	user := new(models.User)
-	err := db.Where(by+" = ?", value).Take(user).Error
+	err := tx.Where(by+" = ?", value).Take(user).Error
 	if err != nil {
+		tx.Rollback()
 		if gorm.IsRecordNotFoundError(err) {
 			return nil, ErrMySQLUserNotExists
 		}
@@ -85,8 +87,9 @@ func getUserFromMysqlBy(by string, value interface{}) (*models.User, error) {
 		return nil, ErrMySQLFailed
 	}
 	room := new(models.Room)
-	err = db.Model(user).Related(room).Error
+	err = tx.Model(user).Related(room).Error
 	if err != nil {
+		tx.Rollback()
 		if gorm.IsRecordNotFoundError(err) {
 			return user, nil
 		}
@@ -94,7 +97,7 @@ func getUserFromMysqlBy(by string, value interface{}) (*models.User, error) {
 		return nil, ErrMySQLFailed
 	}
 	user.Room = *room
-	return user, nil
+	return user, tx.Commit().Error
 }
 
 // func getPasswordFromMysql(username string) (string, error) {
@@ -133,25 +136,30 @@ func saveUserToMysql(user *models.User) error {
 }
 
 func updateUserProfileToMysql(user *models.User, profile *models.ChangeProfileModel) error {
-	err := db.Model(user).Updates(profile.MapUser()).Error
+	tx := db.Begin()
+	err := tx.Model(user).Updates(profile.MapUser()).Error
 	if err != nil {
+		tx.Rollback()
 		log.Warnf("Update user<%v> profile to %#v Mysql failed: %v", user.ID, profile, err)
 		return err
 	}
 
 	user.Room.UserID = user.ID
-	if db.NewRecord(&user.Room) {
-		err := db.Create(&user.Room).Error
+	if tx.NewRecord(&user.Room) {
+		err := tx.Create(&user.Room).Error
 		if err != nil {
+			tx.Rollback()
 			log.Warnf("Create user %#v's room to Mysql failed: %v", user, err)
 			return err
 		}
 	}
 	
-	err = db.Model(&user.Room).Updates(profile.MapRoom()).Error
+	err = tx.Model(&user.Room).Updates(profile.MapRoom()).Error
 	if err != nil {
+		tx.Rollback()
 		log.Warnf("Update user<%v> profile to %#v Mysql failed: %v", user.ID, profile, err)
 		return err
 	}
-	return nil
+
+	return tx.Commit().Error
 }
