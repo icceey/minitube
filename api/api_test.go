@@ -226,6 +226,13 @@ func TestUpdateUserProfile(t *testing.T) {
 				require.Equal(v, *resp.User.LiveName, "LiveName has changed, should equal.")
 			}
 		}
+		if v, ok := changeProfile[i]["live_intro"]; ok {
+			if v == "" {
+				require.Nil(resp.User.LiveIntro, "LiveIntro has deleted, should nil.")
+			} else {
+				require.Equal(v, *resp.User.LiveIntro, "LiveIntro has changed, should equal.")
+			}
+		}
 	}
 
 }
@@ -394,7 +401,7 @@ func createUserForTest() {
 		{"phone": "+1123456789"},
 		{"live_name": "123's living room"},
 		{"email": "124@minitube.com", "phone": ""},
-		{"phone": "", "email": "", "live_name": "125's living room"},
+		{"phone": "", "email": "", "live_name": "125's living room", "live_intro": "welcome to 125's room"},
 	}
 	tokens = make([]string, len(validLoginUser))
 }

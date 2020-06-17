@@ -20,13 +20,14 @@ type LoginModel struct {
 
 // ChangeProfileModel - user change profile request model
 type ChangeProfileModel struct {
-	Email    string `form:"email"     json:"email"     binding:"omitempty,email,max=50"`
-	Phone    string `form:"phone"     json:"phone"     binding:"omitempty,e164"`
-	LiveName string `form:"live_name" json:"live_name" binding:"omitempty,max=30"`
+	Email     string `form:"email"      json:"email"      binding:"omitempty,email,max=50"`
+	Phone     string `form:"phone"      json:"phone"      binding:"omitempty,e164"`
+	LiveName  string `form:"live_name"  json:"live_name"  binding:"omitempty,max=30"`
+	LiveIntro string `form:"live_intro" json:"live_intro" binding:"omitempty,max=200"`
 }
 
-// Map - get ChangeProfileModel in map
-func (m *ChangeProfileModel) Map() map[string]interface{} {
+// MapUser - get ChangeProfileModel in map
+func (m *ChangeProfileModel) MapUser() map[string]interface{} {
 	mp := make(map[string]interface{})
 	if m.Email != "" {
 		mp["email"] = m.Email
@@ -38,10 +39,21 @@ func (m *ChangeProfileModel) Map() map[string]interface{} {
 	} else {
 		mp["phone"] = nil
 	}
+	return mp
+}
+
+// MapRoom - get room profile in map
+func (m *ChangeProfileModel) MapRoom() map[string]interface{} {
+	mp := make(map[string]interface{})
 	if m.LiveName != "" {
-		mp["live_name"] = m.LiveName
+		mp["name"] = m.LiveName
 	} else {
-		mp["live_name"] = nil
+		mp["name"] = nil
+	}
+	if m.LiveIntro != "" {
+		mp["intro"] = m.LiveIntro
+	} else {
+		mp["intro"] = nil
 	}
 	return mp
 }
@@ -55,17 +67,25 @@ type Me struct {
 	Email     *string   `json:"email"`
 	Phone     *string   `json:"phone"`
 	LiveName  *string   `json:"live_name"`
+	LiveIntro *string   `json:"live_intro"`
 }
 
 // GetMeFromUser - get Me from User
 func GetMeFromUser(user *User) *Me {
-	return &Me{
-		ID: user.ID,
+	me := &Me{
+		ID:        user.ID,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
-		Username: user.Username,
-		Email: user.Email,
-		Phone: user.Phone,
-		LiveName: user.LiveName,
+		Username:  user.Username,
+		Email:     user.Email,
+		Phone:     user.Phone,
+		LiveName:  user.Room.Name,
+		LiveIntro: user.Room.Intro,
 	}
+	if user.UpdatedAt.After(user.Room.UpdatedAt) {
+		me.UpdatedAt = user.UpdatedAt
+	} else {
+		me.UpdatedAt = user.Room.UpdatedAt
+	}
+	return me
 }

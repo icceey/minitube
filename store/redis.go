@@ -6,6 +6,7 @@ import (
 	"errors"
 	"minitube/models"
 	"os"
+	"strconv"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -39,10 +40,10 @@ func pingRedis() error {
 	return redisClient.Ping(ctx).Err()
 }
 
-func getUserByUsernameFromRedis(username string) (*models.User, error) {
+func getUserByIDFromRedis(id uint) (*models.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	result := redisClient.Get(ctx, wrapUsernameKey(username))
+	result := redisClient.Get(ctx, wrapIDKey(id))
 	jsonStr, err := result.Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -60,6 +61,10 @@ func getUserByUsernameFromRedis(username string) (*models.User, error) {
 	return user, nil
 }
 
+func getUserByUsernameFromRedis(username string) (*models.User, error) {
+	return getUserFromRedisBy(byUsername, username)
+}
+
 func getUserByEmailFromRedis(email string) (*models.User, error) {
 	return getUserFromRedisBy(byEmail, email)
 }
@@ -68,8 +73,8 @@ func getUserByPhoneFromRedis(phone string) (*models.User, error) {
 	return getUserFromRedisBy(byPhone, phone)
 }
 
-func getUserFromRedisBy(by, value string) (*models.User, error) {
-	username, err := getUsernameFromRedisBy(by, value)
+func getUserFromRedisBy(by string, value interface{}) (*models.User, error) {
+	id, err := getIDFromRedisBy(by, value)
 	if err != nil {
 		if err == redis.Nil {
 			return nil, ErrRedisUserNotExists
@@ -77,55 +82,74 @@ func getUserFromRedisBy(by, value string) (*models.User, error) {
 		log.Warnf("Get user from redis failed: %v", err)
 		return nil, ErrRedisFailed
 	}
-	return getUserByUsernameFromRedis(username)
+	return getUserByIDFromRedis(id)
 }
 
-func getUsernameFromRedisBy(by, value string) (string, error) {
+func getIDFromRedisBy(by string, value interface{}) (uint, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	var key string
 	switch by {
+	case byID:
+		return value.(uint)
 	case byUsername:
-		return value, nil
+		key = wrapUsernameKey(value.(string))
 	case byEmail:
-		key = wrapEmailKey(value)
+		key = wrapEmailKey(value.(string))
 	case byPhone:
-		key = wrapPhoneKey(value)
+		key = wrapPhoneKey(value.(string))
 	default:
-		return "", errors.New("Get username by " + by + " not support")
+		return 0, errors.New("Get username by " + by + " not support")
 	}
 	result := redisClient.Get(ctx, key)
 	err := result.Err()
 	if err != nil {
-		log.Warnf("Get username by %v %v error: %v", by, value, err)
-		return "", err
+		return 0, err
 	}
-	return result.String(), nil
+	id, err := result.Int()
+	if err != nil {
+		return 0, err
+	}
+	return uint(id), nil
 }
 
 func saveUserToRedis(user *models.User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
 	defer cancel()
+
 	userBytes, err := json.Marshal(user)
 	log.Debug("Save user redis ", string(userBytes))
 	if err != nil {
 		log.Warnf("Marshal user %#v error: %v", user, err)
 		return err
 	}
-	err = redisClient.Set(ctx, wrapUsernameKey(user.Username), userBytes, 0).Err()
+
+	// map userID -> user
+	err = redisClient.Set(ctx, wrapIDKey(user.ID), userBytes, 0).Err()
 	if err != nil {
 		log.Warnf("Save user %#v to redis failed: %v", user, err)
 		return err
 	}
+
+	// map username -> userID
+	err = redisClient.Set(ctx, wrapUsernameKey(user.Username), user.ID, 0).Err()
+	if err != nil {
+		log.Warnf("Create index username for user %#v to redis failed: %v", user, err)
+		return err
+	}
+
+	// map email -> userID
 	if user.Email != nil {
-		err = redisClient.Set(ctx, wrapEmailKey(*user.Email), user.Username, 0).Err()
+		err = redisClient.Set(ctx, wrapEmailKey(*user.Email), user.ID, 0).Err()
 		if err != nil {
 			log.Warnf("Create index email for user %#v to redis failed: %v", user, err)
 			return err
 		}
 	}
+
+	// map phone -> userID
 	if user.Phone != nil {
-		err = redisClient.Set(ctx, wrapPhoneKey(*user.Phone), user.Username, 0).Err()
+		err = redisClient.Set(ctx, wrapPhoneKey(*user.Phone), user.ID, 0).Err()
 		if err != nil {
 			log.Warnf("Create index phone for user %#v to redis failed: %v", user, err)
 			return err
@@ -134,46 +158,64 @@ func saveUserToRedis(user *models.User) error {
 	return nil
 }
 
-func updateUserProfileToRedis(username string, profile *models.ChangeProfileModel) error {
-	log.Debug("updateUserProfileToRedis")
-	user, err := GetUserByUsername(username)
+func updateUserProfileToRedis(user *models.User, profile *models.ChangeProfileModel) error {
+	// log.Debug("updateUserProfileToRedis")
+	err := setProfileRedis(user, profile)
 	if err != nil {
 		return err
 	}
+
+	return saveUserToRedis(user)
+}
+
+func setProfileRedis(user *models.User, profile *models.ChangeProfileModel) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
 	defer cancel()
+	// log.Debug("del email key")
+	if (user.Email == nil && profile.Email != "") || (user.Email != nil && *user.Email != profile.Email) {
+		err := redisClient.Del(ctx, wrapEmailKey(strconv.Itoa(int(user.ID)))).Err()
+		if err != nil {
+			return err
+		}
+		if profile.Email == "" {
+			user.Email = nil
+		} else {
+			user.Email = &profile.Email
+		}
+	}
+	// log.Debug("del phone key")
+	if (user.Phone == nil && profile.Phone != "") || (user.Phone != nil && *user.Phone != profile.Phone) {
+		err := redisClient.Del(ctx, wrapPhoneKey(strconv.Itoa(int(user.ID)))).Err()
+		if err != nil {
+			return err
+		}
+		if profile.Phone == "" {
+			user.Phone = nil
+		} else {
+			user.Phone = &profile.Phone
+		}
+	}
 
-	log.Debug("del email key")
-	err = redisClient.Del(ctx, wrapEmailKey(username)).Err()
-	if err != nil {
-		return err
-	}
-	if profile.Email == "" {
-		user.Email = nil
-	} else {
-		user.Email = &profile.Email
-	}
-	log.Debug("del phone key")
-	err = redisClient.Del(ctx, wrapPhoneKey(username)).Err()
-	if err != nil {
-		return err
-	}
-	if profile.Phone == "" {
-		user.Phone = nil
-	} else {
-		user.Phone = &profile.Phone
-	}
-	
 	if profile.LiveName == "" {
-		user.LiveName = nil
+		user.Room.Name = nil
 	} else {
-		user.LiveName = &profile.LiveName
+		user.Room.Name = &profile.LiveName
 	}
-	return saveUserToRedis(user)
+	if profile.LiveIntro == "" {
+		user.Room.Intro = nil
+	} else {
+		user.Room.Intro = &profile.LiveIntro
+	}
+
+	return nil
 }
 
 func wrapUserKey(key string) string {
 	return "user:" + key
+}
+
+func wrapIDKey(id uint) string {
+	return wrapUserKey("id:" + strconv.Itoa(int(id)))
 }
 
 func wrapUsernameKey(username string) string {

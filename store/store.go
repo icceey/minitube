@@ -22,10 +22,16 @@ var (
 )
 
 var (
+	byID       = "id"
 	byUsername = "username"
 	byEmail    = "email"
 	byPhone    = "phone"
 )
+
+// GetUserByID - get user from store by id.
+func GetUserByID(id uint) (*models.User, error) {
+	return getUserBy(byID, id)
+}
 
 // GetUserByUsername - get user from store by username.
 func GetUserByUsername(username string) (*models.User, error) {
@@ -42,16 +48,18 @@ func GetUserByPhone(phone string) (*models.User, error) {
 	return getUserBy(byPhone, phone)
 }
 
-func getUserBy(by, value string) (*models.User, error) {
+func getUserBy(by string, value interface{}) (*models.User, error) {
 	var user *models.User
 	var errRedis, errMysql error
 	switch by {
+	case byID:
+		user, errRedis = getUserByIDFromRedis(value.(uint))
 	case byUsername:
-		user, errRedis = getUserByUsernameFromRedis(value)
+		user, errRedis = getUserByUsernameFromRedis(value.(string))
 	case byEmail:
-		user, errRedis = getUserByEmailFromRedis(value)
+		user, errRedis = getUserByEmailFromRedis(value.(string))
 	case byPhone:
-		user, errRedis = getUserByPhoneFromRedis(value)
+		user, errRedis = getUserByPhoneFromRedis(value.(string))
 	default:
 		return nil, errors.New("Get user by " + by + " not support")
 	}
@@ -59,12 +67,14 @@ func getUserBy(by, value string) (*models.User, error) {
 		return user, nil
 	}
 	switch by {
+	case byID:
+		user, errMysql = getUserByIDFromMysql(value.(uint))
 	case byUsername:
-		user, errMysql = getUserByUsernameFromMysql(value)
+		user, errMysql = getUserByUsernameFromMysql(value.(string))
 	case byEmail:
-		user, errMysql = getUserByEmailFromMysql(value)
+		user, errMysql = getUserByEmailFromMysql(value.(string))
 	case byPhone:
-		user, errMysql = getUserByPhoneFromMysql(value)
+		user, errMysql = getUserByPhoneFromMysql(value.(string))
 	default:
 		return nil, errors.New("Get user by " + by + " not support")
 	}
@@ -94,12 +104,17 @@ func SaveUser(user *models.User) error {
 }
 
 // UpdateUserProfile - update user profile
-func UpdateUserProfile(username string, profile *models.ChangeProfileModel) error {
-	err := updateUserProfileToMysql(username, profile)
+func UpdateUserProfile(id uint, profile *models.ChangeProfileModel) error {
+	user, err := GetUserByID(id)
 	if err != nil {
 		return err
 	}
-	err = updateUserProfileToRedis(username, profile)
+
+	err = updateUserProfileToMysql(user, profile)
+	if err != nil {
+		return err
+	}
+	err = updateUserProfileToRedis(user, profile)
 	if err != nil {
 		return err
 	}

@@ -33,7 +33,7 @@ func TestMySQLInsertUser(t *testing.T) {
 
 }
 
-func TestMySQLGetUserByUsername(t *testing.T) {
+func TestMySQLGetUser(t *testing.T) {
 
 	// User 0-9 has inserted.
 	checkUserInMySQL(t, 0, 10)
@@ -46,6 +46,7 @@ func TestMySQLGetUserByUsername(t *testing.T) {
 func TestRedisSaveUser(t *testing.T) {
 	// Save user 10-19 to redis.
 	for i := 10; i < 20; i++ {
+		users[i].ID = uint(i + 1)
 		err := saveUserToRedis(users[i])
 		require.NoErrorf(t, err, "Save user[%v] to redis should success.", i)
 	}
@@ -91,6 +92,15 @@ func TestGetUserOnlyInMysql(t *testing.T) {
 }
 
 func TestStoreUser(t *testing.T) {
+	// Add user 10-19 to mysql.
+	for i := 10; i < 20; i++ {
+		users[i].ID = 0
+		err := saveUserToMysql(users[i])
+		require.NoErrorf(t, err, "User[%v] should be inserted to mysql.", i)
+	}
+	// User 10-19 has inserted.
+	checkUserInMySQL(t, 10, 20)
+
 	for i := 20; i < 30; i++ {
 		err := SaveUser(users[i])
 		require.NoError(t, err, "Save user[%v] should success.", i)
@@ -105,22 +115,24 @@ func TestUpdateUserProfileToMysql(t *testing.T) {
 		profile := new(models.ChangeProfileModel)
 		profile.Email = "0" + strconv.Itoa(i) + "@minitube.com"
 		profile.Phone = "+11370000000" + strconv.Itoa(i)
-		profile.LiveName = strconv.Itoa(i) + "'s living room"
-		err := updateUserProfileToMysql(users[i].Username, profile)
+		profile.LiveName = strconv.Itoa(i) + "'s live room"
+		profile.LiveIntro = strconv.Itoa(i) + " welcome to my live room"
+		err := updateUserProfileToMysql(users[i], profile)
 		require.NoError(err, "update shouldn't error")
 		users[i].Email = &profile.Email
 		users[i].Phone = &profile.Phone
-		users[i].LiveName = &profile.LiveName
+		users[i].Room.Name = &profile.LiveName
 	}
 	checkUserInMySQL(t, 0, 10)
 	t.Log("Test clear profile")
 	for i := 0; i < 10; i++ {
 		profile := new(models.ChangeProfileModel)
-		err := updateUserProfileToMysql(users[i].Username, profile)
+		err := updateUserProfileToMysql(users[i], profile)
 		require.NoError(err, "update shouldn't error")
 		users[i].Email = nil
 		users[i].Phone = nil
-		users[i].LiveName = nil
+		users[i].Room.Name = nil
+		users[i].Room.Intro = nil
 	}
 	checkUserInMySQL(t, 0, 10)
 }
@@ -131,22 +143,24 @@ func TestUpdateUserProfileToRedis(t *testing.T) {
 		profile := new(models.ChangeProfileModel)
 		profile.Email = "0" + strconv.Itoa(i) + "@minitube.com"
 		profile.Phone = "+11370000000" + strconv.Itoa(i)
-		profile.LiveName = strconv.Itoa(i) + "'s living room"
-		err := updateUserProfileToRedis(users[i].Username, profile)
+		profile.LiveName = strconv.Itoa(i) + "'s live room"
+		profile.LiveIntro = strconv.Itoa(i) + " welcome to my room"
+		err := updateUserProfileToRedis(users[i], profile)
 		require.NoError(err, "update shouldn't error")
 		users[i].Email = &profile.Email
 		users[i].Phone = &profile.Phone
-		users[i].LiveName = &profile.LiveName
+		users[i].Room.Name = &profile.LiveName
+		users[i].Room.Intro = &profile.LiveIntro
 	}
 	checkUserInRedis(t, 0, 10)
 	t.Log("Test clear profile")
 	for i := 0; i < 10; i++ {
 		profile := new(models.ChangeProfileModel)
-		err := updateUserProfileToRedis(users[i].Username, profile)
+		err := updateUserProfileToRedis(users[i], profile)
 		require.NoError(err, "update shouldn't error")
 		users[i].Email = nil
 		users[i].Phone = nil
-		users[i].LiveName = nil
+		users[i].Room.Name = nil
 	}
 	checkUserInRedis(t, 0, 10)
 }
@@ -158,22 +172,25 @@ func TestUpdateUserProfile(t *testing.T) {
 		profile.Email = "0" + strconv.Itoa(i) + "@minitube.com"
 		profile.Phone = "+11370000000" + strconv.Itoa(i)
 		profile.LiveName = strconv.Itoa(i) + "'s living room"
-		err := UpdateUserProfile(users[i].Username, profile)
+		profile.LiveIntro = strconv.Itoa(i) + " welcome to my live room"
+		err := UpdateUserProfile(users[i].ID, profile)
 		require.NoError(err, "update shouldn't error")
 		users[i].Email = &profile.Email
 		users[i].Phone = &profile.Phone
-		users[i].LiveName = &profile.LiveName
+		users[i].Room.Name = &profile.LiveName
+		users[i].Room.Intro = &profile.LiveIntro
 	}
 	checkUserInRedis(t, 0, 10)
 	checkUserInMySQL(t, 0, 10)
 	t.Log("Test clear profile")
 	for i := 0; i < 10; i++ {
 		profile := new(models.ChangeProfileModel)
-		err := UpdateUserProfile(users[i].Username, profile)
+		err := UpdateUserProfile(users[i].ID, profile)
 		require.NoError(err, "update shouldn't error")
 		users[i].Email = nil
 		users[i].Phone = nil
-		users[i].LiveName = nil
+		users[i].Room.Name = nil
+		users[i].Room.Intro = nil
 	}
 	checkUserInRedis(t, 0, 10)
 	checkUserInMySQL(t, 0, 10)
@@ -205,41 +222,67 @@ func createUserForTest() {
 
 func checkUserInRedis(t *testing.T, from, to int) {
 	require := require.New(t)
-	for i := from; i < to; i++ {
-		user, err := getUserByUsernameFromRedis(strconv.Itoa(i))
+	check := func(i int, user *models.User, err error) {
 		require.NoErrorf(err, "Get user[%v] from redis should success.", i)
 		user.CreatedAt = users[i].CreatedAt
 		user.UpdatedAt = users[i].UpdatedAt
+		user.Room.CreatedAt = users[i].Room.CreatedAt
+		user.Room.UpdatedAt = users[i].Room.UpdatedAt
 		require.Equalf(users[i], user, "User %v should equal to user[%v].", i, i)
+	}
+	for i := from; i < to; i++ {
+		user, err := getUserByIDFromRedis(uint(i + 1))
+		check(i, user, err)
+		user, err = getUserByUsernameFromRedis(strconv.Itoa(i))
+		check(i, user, err)
+		// user, err = getUserByEmailFromRedis(strconv.Itoa(i))
+		// check(i, user, err)
+		// user, err = getUserByPhoneFromRedis(strconv.Itoa(i))
+		// check(i, user, err)
 	}
 }
 
 func checkUserNotInRedis(t *testing.T, from, to int) {
 	require := require.New(t)
-	for i := from; i < to; i++ {
-		user, err := getUserByUsernameFromRedis(strconv.Itoa(i))
+	check := func(i int, user *models.User, err error) {
 		require.Errorf(err, "Get user[%v]from redis shouldn't success. %#v", i, user)
 		require.EqualErrorf(err, ErrRedisUserNotExists.Error(), "Get user[%v] has an unexpected error.", i)
+	}
+	for i := from; i < to; i++ {
+		user, err := getUserByIDFromRedis(uint(i + 1))
+		check(i, user, err)
+		user, err = getUserByUsernameFromRedis(strconv.Itoa(i))
+		check(i, user, err)
 	}
 }
 
 func checkUserNotInMySQL(t *testing.T, from, to int) {
 	require := require.New(t)
-	for i := from; i < to; i++ {
-		user, err := getUserByUsernameFromMysql(strconv.Itoa(i))
+	check := func(i int, user *models.User, err error) {
 		require.Errorf(err, "Get user[%v] from mysql shouldn't success %#v.", i, user)
 		require.EqualErrorf(err, ErrMySQLUserNotExists.Error(), "Get user[%v] has an unexpected error.", i)
+	}
+	for i := from; i < to; i++ {
+		user, err := getUserByIDFromMysql(uint(i + 1))
+		user, err = getUserByUsernameFromMysql(strconv.Itoa(i))
+		check(i, user, err)
 	}
 }
 
 func checkUserInMySQL(t *testing.T, from, to int) {
 	require := require.New(t)
-	for i := from; i < to; i++ {
-		user, err := getUserByUsernameFromMysql(strconv.Itoa(i))
+	check := func(i int, user *models.User, err error) {
 		require.NoErrorf(err, "Get user[%v] from mysql should success.", i)
 		user.CreatedAt = users[i].CreatedAt
 		user.UpdatedAt = users[i].UpdatedAt
+		user.Room.CreatedAt = users[i].Room.CreatedAt
+		user.Room.UpdatedAt = users[i].Room.UpdatedAt
 		require.Equalf(users[i], user, "User %v should equal to user[%v].", i, i)
+	}
+	for i := from; i < to; i++ {
+		user, err := getUserByIDFromMysql(uint(i + 1))
+		user, err = getUserByUsernameFromMysql(strconv.Itoa(i))
+		check(i, user, err)
 	}
 }
 

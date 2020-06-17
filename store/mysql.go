@@ -43,6 +43,7 @@ func init() {
 	db.DB().SetMaxOpenConns(3)
 
 	db.AutoMigrate(&models.User{})
+	db.AutoMigrate(&models.Room{})
 
 	if debug := os.Getenv("DEBUG"); debug == "true" {
 		db = db.Debug()
@@ -69,7 +70,11 @@ func getUserByPhoneFromMysql(phone string) (*models.User, error) {
 	return getUserFromMysqlBy(byPhone, phone)
 }
 
-func getUserFromMysqlBy(by, value string) (*models.User, error) {
+func getUserByIDFromMysql(id uint) (*models.User, error) {
+	return getUserFromMysqlBy(byID, id)
+}
+
+func getUserFromMysqlBy(by string, value interface{}) (*models.User, error) {
 	user := new(models.User)
 	err := db.Where(by+" = ?", value).Take(user).Error
 	if err != nil {
@@ -79,12 +84,44 @@ func getUserFromMysqlBy(by, value string) (*models.User, error) {
 		log.Warnf("Get user %v from Mysql failed: %v", value, err)
 		return nil, ErrMySQLFailed
 	}
+	room := new(models.Room)
+	err = db.Model(user).Related(room).Error
+	if err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			return user, nil
+		}
+		log.Warnf("Get user %v's room from Mysql failed: %v", value, err)
+		return nil, ErrMySQLFailed
+	}
+	user.Room = *room
 	return user, nil
 }
 
+// func getPasswordFromMysql(username string) (string, error) {
+// 	result := db.Model(models.User{}).Select("password").Where("username = ?", username)
+// 	err := result.Error
+// 	if err != nil {
+// 		if gorm.IsRecordNotFoundError(err) {
+// 			return "", ErrMySQLUserNotExists
+// 		}
+// 		log.Warnf("Get user %v's password from Mysql failed: %v", username, err)
+// 		return "", ErrMySQLFailed
+// 	}
+// 	var pass string
+// 	err = result.Row().Scan(&pass)
+// 	if err != nil {
+// 		if errors.Is(err, sql.ErrNoRows) {
+// 			return "", ErrMySQLUserNotExists
+// 		}
+// 		log.Warnf("Get user %v's password from Mysql failed: %v", username, err)
+// 		return "", ErrMySQLFailed
+// 	}
+// 	return pass, nil
+// }
+
 func saveUserToMysql(user *models.User) error {
 	if db.NewRecord(user) {
-		log.Debugf("%#v", user)
+		// log.Debugf("%#v", user)
 		err := db.Create(user).Error
 		if err != nil {
 			log.Warnf("Save user %#v to Mysql failed: %v", user, err)
@@ -95,10 +132,25 @@ func saveUserToMysql(user *models.User) error {
 	return nil
 }
 
-func updateUserProfileToMysql(username string, profile *models.ChangeProfileModel) error {
-	err := db.Model(models.User{}).Where("username = ?", username).Updates(profile.Map()).Error
+func updateUserProfileToMysql(user *models.User, profile *models.ChangeProfileModel) error {
+	err := db.Model(user).Updates(profile.MapUser()).Error
 	if err != nil {
-		log.Warnf("Update user<%v> profile to %#v Mysql failed: %v", username, profile, err)
+		log.Warnf("Update user<%v> profile to %#v Mysql failed: %v", user.ID, profile, err)
+		return err
+	}
+
+	user.Room.UserID = user.ID
+	if db.NewRecord(&user.Room) {
+		err := db.Create(&user.Room).Error
+		if err != nil {
+			log.Warnf("Create user %#v's room to Mysql failed: %v", user, err)
+			return err
+		}
+	}
+	
+	err = db.Model(&user.Room).Updates(profile.MapRoom()).Error
+	if err != nil {
+		log.Warnf("Update user<%v> profile to %#v Mysql failed: %v", user.ID, profile, err)
 		return err
 	}
 	return nil

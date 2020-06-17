@@ -71,12 +71,12 @@ func init() {
 }
 
 func getMe(c *gin.Context) {
-	username, ok := getUsername(c)
+	id, ok := getUserID(c)
 	if !ok {
 		return
 	}
 
-	user, err := store.GetUserByUsername(username)
+	user, err := store.GetUserByID(id)
 	if err != nil {
 		if errors.Is(err, store.ErrRedisUserNotExists) || errors.Is(err, store.ErrMySQLUserNotExists) {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -183,7 +183,7 @@ func getStreamKeyFromLive(c *gin.Context, username string) string {
 }
 
 func updateUserProfile(c *gin.Context) {
-	username, ok := getUsername(c)
+	id, ok := getUserID(c)
 	if !ok {
 		return
 	}
@@ -198,7 +198,7 @@ func updateUserProfile(c *gin.Context) {
 		return
 	}
 
-	err := store.UpdateUserProfile(username, profile)
+	err := store.UpdateUserProfile(id, profile)
 	if err != nil {
 		if errors.Is(err, store.ErrRedisUserNotExists) || errors.Is(err, store.ErrMySQLUserNotExists) {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -221,17 +221,17 @@ func updateUserProfile(c *gin.Context) {
 	})
 }
 
-func getUsername(c *gin.Context) (string, bool) {
+func getUserID(c *gin.Context) (uint, bool) {
 	claims := middleware.ExtractClaims(c)
 
 	i, exists := claims[authMiddleware.IdentityKey]
-	username, ok := i.(string)
+	id, ok := i.(float64)
 	if !exists || !ok {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    http.StatusBadRequest,
 			"message": "Bad Token.",
 		})
-		return "", false
+		return 0, false
 	}
-	return username, true
+	return uint(id), true
 }

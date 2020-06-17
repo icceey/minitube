@@ -11,7 +11,7 @@ type User struct {
 	Password string  `gorm:"type:char(64);not null"`
 	Email    *string `gorm:"type:varchar(50);unique_index"`
 	Phone    *string `gorm:"type:varchar(18);unique_index"`
-	LiveName *string `gorm:"type:varchar(30)"`
+	Room     Room
 }
 
 // NewUser - return a user by username and password
@@ -36,7 +36,10 @@ func NewUserFromMap(mp map[string]string) *User {
 		user.Phone = &v
 	}
 	if v, ok := mp["live_name"]; ok {
-		user.LiveName = &v
+		user.Room.Name = &v
+	}
+	if v, ok := mp["live_intro"]; ok {
+		user.Room.Intro = &v
 	}
 	return user
 }

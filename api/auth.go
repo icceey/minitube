@@ -17,12 +17,13 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 	Key:           []byte(os.Getenv("JWT_SECRET_KEY")),
 	Timeout:       time.Hour,
 	MaxRefresh:    24 * time.Hour,
-	IdentityKey:   "username",
+	IdentityKey:   "id",
 	TokenHeadName: "MiniTube",
 
 	PayloadFunc: func(data interface{}) jwt.MapClaims {
 		if v, ok := data.(*models.User); ok {
 			return jwt.MapClaims{
+				"id": v.ID,
 				"username": v.Username,
 			}
 		}
@@ -31,9 +32,10 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 
 	IdentityHandler: func(c *gin.Context) interface{} {
 		claims := jwt.ExtractClaims(c)
-		return &models.User{
-			Username: claims["username"].(string),
-		}
+		user := new(models.User)
+		user.ID = uint(claims["id"].(float64))
+		user.Username = claims["username"].(string)
+		return user
 	},
 
 	Authenticator: func(c *gin.Context) (interface{}, error) {
@@ -77,6 +79,9 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 	},
 	Authorizator: func(data interface{}, c *gin.Context) bool {
 		if user, ok := data.(*models.User); ok {
+			if user.ID == 0 {
+				return false
+			}
 			if c.FullPath() == "/stream/key/:username" {
 				if user.Username != c.Param("username") {
 					return false
@@ -93,7 +98,7 @@ var authMiddleware, err = jwt.New(&jwt.GinJWTMiddleware{
 		})
 	},
 
-	TokenLookup: "header: Authorization, query: token, cookie: token",
+	TokenLookup: "header: Authorization, cookie: token",
 
 	SendCookie:     true,
 	SecureCookie:   false,
