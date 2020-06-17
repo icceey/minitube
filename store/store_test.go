@@ -196,6 +196,29 @@ func TestUpdateUserProfile(t *testing.T) {
 	checkUserInMySQL(t, 0, 10)
 }
 
+func TestChangePassword(t *testing.T) {
+	require := require.New(t)
+	for i := 0; i < 10; i++ {
+		err := changePasswordToMysql(users[i], "mysql")
+		require.NoError(err, "update shouldn't error")
+		users[i].Password = "mysql"
+	}
+	checkUserInMySQL(t, 0, 10)
+	for i := 0; i < 10; i++ {
+		err := changePasswordToRedis(users[i], "redis")
+		require.NoError(err, "update shouldn't error")
+		users[i].Password = "redis"
+	}
+	checkUserInRedis(t, 0, 10)
+	for i := 0; i < 10; i++ {
+		err := ChangePassword(users[i], "store")
+		require.NoError(err, "update shouldn't error")
+		users[i].Password = "store"
+	}
+	checkUserInMySQL(t, 0, 10)
+	checkUserInRedis(t, 0, 10)
+}
+
 func createUserForTest() {
 	users = make([]*models.User, 0, 50)
 	phone := int64(13688866600)

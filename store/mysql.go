@@ -122,6 +122,15 @@ func getUserFromMysqlBy(by string, value interface{}) (*models.User, error) {
 // 	return pass, nil
 // }
 
+
+func changePasswordToMysql(user *models.User, password string) error {
+	err := db.Model(user).Update("password", password).Error
+	if err != nil {
+		log.Warnf("Change user %v password to %v failed.", user.Username, password)
+	}
+	return err
+}
+
 func saveUserToMysql(user *models.User) error {
 	if db.NewRecord(user) {
 		// log.Debugf("%#v", user)

@@ -89,3 +89,10 @@ func GetMeFromUser(user *User) *Me {
 	}
 	return me
 }
+
+
+// ChangePasswordModel - change password request model
+type ChangePasswordModel struct {
+	OldPassword string `json:"old_password" form:"old_password" binding:"required,hexadecimal,len=64"`
+	NewPassword string `json:"new_password" form:"new_password" binding:"required,hexadecimal,len=64"`
+}

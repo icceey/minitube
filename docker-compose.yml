@@ -3,7 +3,7 @@ version: "3.4"
 services:
 
     minitube:
-      build: .
+      image: icceey/minitube
       container_name: minitube-go
       restart: always
       ports:

@@ -218,6 +218,11 @@ func setProfileRedis(user *models.User, profile *models.ChangeProfileModel) erro
 	return err
 }
 
+func changePasswordToRedis(user *models.User, password string) error {
+	user.Password = password
+	return saveUserToRedis(user)
+}
+
 func wrapUserKey(key string) string {
 	return "user:" + key
 }

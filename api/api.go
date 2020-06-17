@@ -67,6 +67,7 @@ func init() {
 	userGroup.Use(authMiddleware.MiddlewareFunc())
 	userGroup.GET("/me", getMe)
 	userGroup.POST("/profile", updateUserProfile)
+	userGroup.POST("/password", changePassword)
 
 	streamGroup := Router.Group("/stream")
 	streamGroup.Use(authMiddleware.MiddlewareFunc())
@@ -219,6 +220,66 @@ func updateUserProfile(c *gin.Context) {
 		return
 	}
 
+	c.JSON(http.StatusOK, gin.H{
+		"code":    http.StatusOK,
+		"message": "OK",
+	})
+}
+
+func changePassword(c *gin.Context) {
+	id, ok := getUserID(c)
+	if !ok {
+		return
+	}
+
+	pass := new(models.ChangePasswordModel)
+	if err := c.ShouldBind(pass); err != nil {
+		log.Debug(err)
+		c.JSON(http.StatusNotAcceptable, gin.H{
+			"code":    http.StatusNotAcceptable,
+			"message": "invalid felid",
+		})
+		return
+	}
+
+	user, err := store.GetUserByID(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    http.StatusBadRequest,
+			"message": "User not exists",
+		})
+		return
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(pass.OldPassword))
+	if err != nil {
+		c.Error(err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    http.StatusBadRequest,
+			"message": "Password is wrong",
+		})
+		return 
+	}
+
+	passwordEncrypted, err := bcrypt.GenerateFromPassword([]byte(pass.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    http.StatusInternalServerError,
+			"message": "Server Error.",
+		})
+		return
+	}
+
+	err = store.ChangePassword(user, string(passwordEncrypted))
+	if err != nil {
+		c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    http.StatusInternalServerError,
+			"message": "Server Error.",
+		})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"code":    http.StatusOK,
 		"message": "OK",

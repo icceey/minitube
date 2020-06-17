@@ -25,6 +25,7 @@ var (
 	validRegister    []*models.RegisterModel
 	validLoginUser   []*models.LoginModel
 	changeProfile    []map[string]string
+	changePass       []map[string]string
 	tokens           []string
 )
 
@@ -237,6 +238,19 @@ func TestUpdateUserProfile(t *testing.T) {
 
 }
 
+func TestChangePassword(t *testing.T) {
+	require := require.New(t)
+
+	for i := range changePass {
+		var resp response
+		body := postJSON(t, "/user/password", changePass[i], tokens[i])
+		err := json.Unmarshal(body, &resp)
+		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
+		require.Equal(http.StatusOK, resp.Code, "Get stream key should return OK")
+		require.Equal("OK", resp.Message, "message should be OK")
+	}
+}
+
 func postJSON(t *testing.T, uri string, mp map[string]string, token string) []byte {
 	rec := httptest.NewRecorder()
 
@@ -402,6 +416,10 @@ func createUserForTest() {
 		{"live_name": "123's living room"},
 		{"email": "124@minitube.com", "phone": ""},
 		{"phone": "", "email": "", "live_name": "125's living room", "live_intro": "welcome to 125's room"},
+	}
+	changePass = []map[string]string{
+		{"old_password": validRegister[0].Password,  "new_password": "fca26135ea43ad0ba904e62c85793768e4c9a136d2660bb2b15952ad445f5921"},
+		{"old_password": validRegister[1].Password,  "new_password": "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
 	}
 	tokens = make([]string, len(validLoginUser))
 }

@@ -114,11 +114,18 @@ func UpdateUserProfile(id uint, profile *models.ChangeProfileModel) error {
 	if err != nil {
 		return err
 	}
-	err = updateUserProfileToRedis(user, profile)
+
+	return updateUserProfileToRedis(user, profile)
+}
+
+
+// ChangePassword - user change password to store
+func ChangePassword(user *models.User, password string) error {
+	err := changePasswordToMysql(user, password)
 	if err != nil {
 		return err
 	}
-	return nil
+	return changePasswordToRedis(user, password)
 }
 
 // CloseAll - close redis client and mysql connection.
