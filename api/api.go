@@ -9,6 +9,7 @@ import (
 	"minitube/utils"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -63,6 +64,10 @@ func init() {
 	Router.POST("/refresh", authMiddleware.RefreshHandler)
 	Router.POST("/logout", authMiddleware.LogoutHandler)
 
+	Router.GET("/profile/:username", getPublicUser)
+	Router.GET("/living/:num", getLivingList)
+
+
 	userGroup := Router.Group("/user")
 	userGroup.Use(authMiddleware.MiddlewareFunc())
 	userGroup.GET("/me", getMe)
@@ -73,6 +78,62 @@ func init() {
 	streamGroup.Use(authMiddleware.MiddlewareFunc())
 	streamGroup.GET("/key/:username", getStreamKey)
 
+}
+
+
+func getPublicUser(c *gin.Context)  {
+	username := c.Param("username")
+
+	user, err := store.GetUserByUsername(username)
+	if err != nil {
+		if errors.Is(err, store.ErrRedisUserNotExists) || errors.Is(err, store.ErrMySQLUserNotExists) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code":    http.StatusBadRequest,
+				"message": "User not exists.",
+			})
+			return
+		}
+		c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    http.StatusInternalServerError,
+			"message": "Server Error",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": http.StatusOK,
+		"user": models.NewPublicUserFromUser(user),
+	})
+}
+
+func getLivingList(c *gin.Context) {
+	numStr := c.Param("num")
+
+	num, err := strconv.ParseInt(numStr, 10, 64)
+	if err != nil || num <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    http.StatusBadRequest,
+			"message": "param not correct.",
+		})
+		return
+	}
+
+	userList, err := store.GetLivingUserList(num)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    http.StatusInternalServerError,
+			"message": "Server Error.",
+		})
+		return
+	}
+
+	model := models.NewLivingListModelFromUserList(userList)
+	c.JSON(http.StatusOK, gin.H{
+		"code": http.StatusOK,
+		"total": model.Total,
+		"users": model.Users,
+	})
 }
 
 func getMe(c *gin.Context) {

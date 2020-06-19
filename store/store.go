@@ -128,6 +128,27 @@ func ChangePassword(user *models.User, password string) error {
 	return changePasswordToRedis(user, password)
 }
 
+
+// GetLivingUserList - get living user info list
+func GetLivingUserList(num int64) ([]*models.User, error) {
+	usernameList, err := GetLivingUsernameList(num)
+	if err != nil {
+		return []*models.User{}, err
+	}
+
+	userList := make([]*models.User, 0, 16)
+	for _, username := range usernameList {
+		user, err := GetUserByUsername(username)
+		if err != nil {
+			log.Warnf("GetLivingUserList: username<%v> error : %v", username, err)
+			continue
+		}
+		userList = append(userList, user)
+	}
+
+	return userList, nil
+}
+
 // CloseAll - close redis client and mysql connection.
 func CloseAll() {
 	client.Close()

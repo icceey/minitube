@@ -90,9 +90,42 @@ func GetMeFromUser(user *User) *Me {
 	return me
 }
 
-
 // ChangePasswordModel - change password request model
 type ChangePasswordModel struct {
 	OldPassword string `json:"old_password" form:"old_password" binding:"required,hexadecimal,len=64"`
 	NewPassword string `json:"new_password" form:"new_password" binding:"required,hexadecimal,len=64"`
+}
+
+// PublicUser - public user don't have private info.
+type PublicUser struct {
+	Username  string  `json:"username"`
+	RoomName  *string `json:"live_name"`
+	RoomIntro *string `json:"live_intro"`
+}
+
+// NewPublicUserFromUser - new public user from user
+func NewPublicUserFromUser(user *User) *PublicUser {
+	return &PublicUser{
+		Username:  user.Username,
+		RoomName:  user.Room.Name,
+		RoomIntro: user.Room.Intro,
+	}
+}
+
+// LivingListModel - living list response model
+type LivingListModel struct {
+	Total int           `json:"total"`
+	Users []*PublicUser `json:"users"`
+}
+
+// NewLivingListModelFromUserList - new living list model from user list
+func NewLivingListModelFromUserList(users []*User) *LivingListModel {
+	list := new(LivingListModel)
+	list.Total = len(users)
+
+	for _, user := range users {
+		list.Users = append(list.Users, NewPublicUserFromUser(user))
+	}
+
+	return list
 }

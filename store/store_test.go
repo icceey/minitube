@@ -1,10 +1,12 @@
 package store
 
 import (
+	"context"
 	"minitube/models"
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -217,6 +219,45 @@ func TestChangePassword(t *testing.T) {
 	}
 	checkUserInMySQL(t, 0, 10)
 	checkUserInRedis(t, 0, 10)
+}
+
+func TestGetLivingList(t *testing.T) {
+	require := require.New(t)
+
+	userList, err := GetLivingUserList(16)
+	require.NoError(err, "Get living list shouldn't error")
+	require.Empty(userList, "User list should empty")
+
+	streamForTest(0, 5, true)
+
+	userList, err = GetLivingUserList(6)
+	require.NoError(err, "Get living list shouldn't error")
+	require.Len(userList, 5, "5 users are living ! [0-4]")
+
+	userList, err = GetLivingUserList(3)
+	require.NoError(err, "Get living list shouldn't error")
+	require.Len(userList, 3, "Only return 3 users")
+
+	streamForTest(0, 2, false)
+
+	userList, err = GetLivingUserList(5)
+	require.NoError(err, "Get living list shouldn't error")
+	require.Len(userList, 3, "Only return 3 users [2-4]")
+
+	streamForTest(2, 5, false)
+}
+
+func streamForTest(from, to int, start bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout*time.Duration((to-from+1)/2))
+	defer cancel()
+
+	for i := from; i < to; i++ {
+		if start {
+			client.SAdd(ctx, "living", users[i].Username)
+		} else {
+			client.SRem(ctx, "living", users[i].Username)
+		}
+	}
 }
 
 func createUserForTest() {

@@ -15,7 +15,7 @@ var client *redis.Client
 
 func init() {
 	log.Info("Initialize redis client...")
-	client = newRedisClient()
+	client = NewRedisClient()
 
 	log.Info("Checking redis service...")
 	err := pingRedis()
@@ -26,7 +26,8 @@ func init() {
 	log.Info("Redis is OK.")
 }
 
-func newRedisClient() *redis.Client {
+// NewRedisClient - new redis client
+func NewRedisClient() *redis.Client {
 	return redis.NewClient(&redis.Options{
 		Addr:     os.Getenv("REDIS_ADDR"),
 		Password: os.Getenv("REDIS_PASSWORD"),
@@ -221,6 +222,23 @@ func setProfileRedis(user *models.User, profile *models.ChangeProfileModel) erro
 func changePasswordToRedis(user *models.User, password string) error {
 	user.Password = password
 	return saveUserToRedis(user)
+}
+
+// GetLivingUsernameList - get who is living
+func GetLivingUsernameList(num int64) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
+	defer cancel()
+
+	result, err := client.SRandMemberN(ctx, "living", num).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return []string{}, nil
+		}
+		log.Warn("GetLivingUsernameList: ", err)
+		return []string{}, err
+	}
+
+	return result, nil
 }
 
 func wrapUserKey(key string) string {

@@ -1,15 +1,19 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"minitube/models"
+	"minitube/store"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -29,32 +33,46 @@ var (
 	tokens           []string
 )
 
-type response struct {
+type baseResponse struct {
 	Code    int
 	Message string
+}
 
+type tokenResponse struct {
+	baseResponse
 	Token  string
 	Expire string
+}
 
-	Key string
-
+type meResponse struct {
+	baseResponse
 	User *models.Me
 }
 
-var (
-	respLoginMissing    = response{Code: http.StatusUnauthorized, Message: "missing Username or Password"}
-	respLoginIncorrect  = response{Code: http.StatusUnauthorized, Message: "incorrect Username or Password"}
-	respRegisterExists  = response{Code: http.StatusConflict, Message: "username already exists"}
-	respRegisterInvalid = response{Code: http.StatusNotAcceptable, Message: "invalid felid"}
-	respRegisterOK      = response{Code: http.StatusOK, Message: "OK"}
-	respTokenNotMatch   = response{Code: http.StatusForbidden, Message: "you don't have permission to access this resource"}
-)
+type keyResponse struct {
+	baseResponse
+	Key string
+}
+
+type liveResponse struct {
+	baseResponse
+	Total int
+	Users []*models.PublicUser
+}
+
+type pubResponse struct {
+	baseResponse
+	User *models.PublicUser
+}
 
 func TestRegister(t *testing.T) {
 	require := require.New(t)
 
+	respRegisterInvalid := baseResponse{Code: http.StatusNotAcceptable, Message: "invalid felid"}
+	respRegisterOK := baseResponse{Code: http.StatusOK, Message: "OK"}
+
 	// not has username or password will fail.
-	var resp response
+	var resp baseResponse
 	body := postJSON(t, "/register", nil, "")
 	err := json.Unmarshal(body, &resp)
 	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
@@ -63,7 +81,7 @@ func TestRegister(t *testing.T) {
 
 	// Username or password not valid  will fail register.
 	for _, user := range invalidRegister {
-		var resp response
+		var resp baseResponse
 		body := postJSON(t, "/register", mapUser(user), "")
 		err := json.Unmarshal(body, &resp)
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
@@ -72,7 +90,7 @@ func TestRegister(t *testing.T) {
 
 	// This should register success.
 	for _, user := range validRegister {
-		var resp response
+		var resp baseResponse
 		body := postJSON(t, "/register", mapUser(user), "")
 		err := json.Unmarshal(body, &resp)
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
@@ -83,9 +101,16 @@ func TestRegister(t *testing.T) {
 func TestLogin(t *testing.T) {
 	require := require.New(t)
 
+	respLoginIncorrect := tokenResponse{
+		baseResponse: baseResponse{
+			Code:    http.StatusUnauthorized,
+			Message: "incorrect Username or Password",
+		},
+	}
+
 	// Username or password not valid  will fail login.
 	for _, user := range invalidLoginUser {
-		var resp response
+		var resp tokenResponse
 		body := postJSON(t, "/login", mapUser(user), "")
 		err := json.Unmarshal(body, &resp)
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
@@ -94,7 +119,7 @@ func TestLogin(t *testing.T) {
 
 	// Username and password not match will fail.
 	for _, user := range wrongLoginUser {
-		var resp response
+		var resp tokenResponse
 		body := postJSON(t, "/login", mapUser(user), "")
 		err := json.Unmarshal(body, &resp)
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
@@ -103,7 +128,7 @@ func TestLogin(t *testing.T) {
 
 	// This should login success.
 	for i, user := range validLoginUser {
-		var resp response
+		var resp tokenResponse
 		body := postJSON(t, "/login", mapUser(user), "")
 		err := json.Unmarshal(body, &resp)
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
@@ -120,7 +145,7 @@ func TestRefresh(t *testing.T) {
 
 	// Refresh token
 	for i, token := range tokens {
-		var resp response
+		var resp tokenResponse
 		body := postJSON(t, "/refresh", nil, token)
 		err := json.Unmarshal(body, &resp)
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
@@ -137,7 +162,7 @@ func TestLogout(t *testing.T) {
 
 	// Logout
 	for _, token := range tokens {
-		var resp response
+		var resp baseResponse
 		body := postJSON(t, "/logout", nil, token)
 		err := json.Unmarshal(body, &resp)
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
@@ -150,7 +175,7 @@ func TestGetMe(t *testing.T) {
 
 	// Get my info.
 	for i, user := range validRegister {
-		var resp response
+		var resp meResponse
 		body := get(t, "/user/me", tokens[i])
 		err := json.Unmarshal(body, &resp)
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
@@ -163,9 +188,16 @@ func TestGetMe(t *testing.T) {
 func TestGetStreamKey(t *testing.T) {
 	require := require.New(t)
 
+	respTokenNotMatch := keyResponse{
+		baseResponse: baseResponse {
+			Code: http.StatusForbidden, 
+			Message: "you don't have permission to access this resource",
+		},
+	}
+
 	// Get stream key
 	for i, user := range validRegister {
-		var resp response
+		var resp keyResponse
 		body := get(t, "/stream/key/"+user.Username, tokens[i])
 		err := json.Unmarshal(body, &resp)
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
@@ -176,7 +208,7 @@ func TestGetStreamKey(t *testing.T) {
 
 	// When username and token not match, key will not return
 	for i, user := range validRegister {
-		var resp response
+		var resp keyResponse
 		token := tokens[0]
 		num := len(validRegister)
 		token = tokens[(i+3)%num]
@@ -191,7 +223,7 @@ func TestUpdateUserProfile(t *testing.T) {
 	require := require.New(t)
 
 	for i := range validRegister {
-		var resp response
+		var resp baseResponse
 		body := postJSON(t, "/user/profile", changeProfile[i], tokens[i])
 		err := json.Unmarshal(body, &resp)
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
@@ -200,7 +232,7 @@ func TestUpdateUserProfile(t *testing.T) {
 	}
 
 	for i, user := range validRegister {
-		var resp response
+		var resp meResponse
 		body := get(t, "/user/me", tokens[i])
 		err := json.Unmarshal(body, &resp)
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
@@ -242,13 +274,64 @@ func TestChangePassword(t *testing.T) {
 	require := require.New(t)
 
 	for i := range changePass {
-		var resp response
+		var resp baseResponse
 		body := postJSON(t, "/user/password", changePass[i], tokens[i])
 		err := json.Unmarshal(body, &resp)
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
 		require.Equal(http.StatusOK, resp.Code, "Get stream key should return OK")
 		require.Equal("OK", resp.Message, "message should be OK")
 	}
+}
+
+func TestLivingList(t *testing.T) {
+	require := require.New(t)
+
+	var resp liveResponse
+	body := get(t, "/living/3", "")
+	err := json.Unmarshal(body, &resp)
+	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
+	require.Equal(0, resp.Total, "No user are living")
+	require.Empty(resp.Users, "users should empty")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	client := store.NewRedisClient()
+	defer client.Close()
+
+	for i := 121; i < 124; i++ {
+		client.SAdd(ctx, "living", strconv.Itoa(i))
+	}
+	body = get(t, "/living/4", "")
+	err = json.Unmarshal(body, &resp)
+	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
+	require.Equal(3, resp.Total, "No user are living")
+	require.Len(resp.Users, 3, "3 users living")
+
+	body = get(t, "/living/2", "")
+	err = json.Unmarshal(body, &resp)
+	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
+	require.Equal(2, resp.Total, "No user are living")
+	require.Len(resp.Users, 2, "3 users living but should only return 2")
+
+	client.SRem(ctx, "living", 122)
+
+	body = get(t, "/living/3", "")
+	err = json.Unmarshal(body, &resp)
+	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
+	require.Equal(2, resp.Total, "No user are living")
+	require.Len(resp.Users, 2, "2 users living")
+
+}
+
+func TestGetPublicUser(t *testing.T) {
+	require := require.New(t)
+
+	var resp pubResponse
+	body := get(t, "/profile/121", "")
+	err := json.Unmarshal(body, &resp)
+	t.Log(string(body))
+	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
+	require.NotNil(resp.User, "User shouldn't nil")
 }
 
 func postJSON(t *testing.T, uri string, mp map[string]string, token string) []byte {
@@ -418,8 +501,8 @@ func createUserForTest() {
 		{"phone": "", "email": "", "live_name": "125's living room", "live_intro": "welcome to 125's room"},
 	}
 	changePass = []map[string]string{
-		{"old_password": validRegister[0].Password,  "new_password": "fca26135ea43ad0ba904e62c85793768e4c9a136d2660bb2b15952ad445f5921"},
-		{"old_password": validRegister[1].Password,  "new_password": "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
+		{"old_password": validRegister[0].Password, "new_password": "fca26135ea43ad0ba904e62c85793768e4c9a136d2660bb2b15952ad445f5921"},
+		{"old_password": validRegister[1].Password, "new_password": "c96d84ba3b4a823c4fee088a7369a5c02f50ef40f9ca54bdec34843eba157132"},
 	}
 	tokens = make([]string, len(validLoginUser))
 }
