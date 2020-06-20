@@ -34,7 +34,7 @@ func init() {
 	Router.Use(middleware.Ginzap(utils.Logger, time.RFC3339, true))
 	Router.Use(middleware.RecoveryWithZap(utils.Logger, true))
 
-	Router.LoadHTMLFiles("./out/index.html", "./out/watch.html",
+	Router.LoadHTMLFiles("./out/index.html", "./out/watch/[streamer].html", "./out/mine.html",
 		"./out/login.html", "./out/register.html", "./out/404.html")
 	Router.Static("/_next/static", "./out/_next/static")
 	Router.StaticFile("/favicon.ico", "./out/favicon.ico")
@@ -51,8 +51,11 @@ func init() {
 	Router.GET("/register", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "register.html", nil)
 	})
+	Router.GET("/mine", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "mine.html", nil)
+	})
 	Router.GET("/live/:username", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "watch.html", nil)
+		c.HTML(http.StatusOK, "[streamer].html", nil)
 	})
 	Router.NoRoute(func (c *gin.Context) {
 		c.HTML(http.StatusNotFound, "404.html", nil)
@@ -66,7 +69,6 @@ func init() {
 
 	Router.GET("/profile/:username", getPublicUser)
 	Router.GET("/living/:num", getLivingList)
-
 
 	userGroup := Router.Group("/user")
 	userGroup.Use(authMiddleware.MiddlewareFunc())
