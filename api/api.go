@@ -61,7 +61,6 @@ func init() {
 		c.HTML(http.StatusNotFound, "404.html", nil)
 	})
 
-
 	Router.POST("/register", register)
 	Router.POST("/login", authMiddleware.LoginHandler)
 	Router.POST("/refresh", authMiddleware.RefreshHandler)
@@ -105,7 +104,7 @@ func getPublicUser(c *gin.Context)  {
 
 	c.JSON(http.StatusOK, gin.H{
 		"code": http.StatusOK,
-		"user": models.NewPublicUserFromUser(user),
+		"user": store.NewPublicUserFromUser(user),
 	})
 }
 
@@ -130,7 +129,7 @@ func getLivingList(c *gin.Context) {
 		return
 	}
 
-	model := models.NewLivingListModelFromUserList(userList)
+	model := store.NewLivingListModelFromUserList(userList)
 	c.JSON(http.StatusOK, gin.H{
 		"code": http.StatusOK,
 		"total": model.Total,

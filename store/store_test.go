@@ -254,8 +254,10 @@ func streamForTest(from, to int, start bool) {
 	for i := from; i < to; i++ {
 		if start {
 			client.SAdd(ctx, "living", users[i].Username)
+			client.Set(ctx, "living:"+users[i].Username, time.Now().Format(time.RFC3339), 0)
 		} else {
 			client.SRem(ctx, "living", users[i].Username)
+			client.Del(ctx, "living:"+users[i].Username)
 		}
 	}
 }

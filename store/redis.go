@@ -7,6 +7,7 @@ import (
 	"minitube/models"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -239,6 +240,40 @@ func GetLivingUsernameList(num int64) ([]string, error) {
 	}
 
 	return result, nil
+}
+
+// GetUserIsLiving - whether user is living
+func GetUserIsLiving(username string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
+	defer cancel()
+
+	living, err := client.SIsMember(ctx, "living", username).Result()
+	if err != nil {
+		log.Warn("GetUserIsLiving: ", err)
+	}
+	return living, err
+}
+
+// GetLivingTime - get when user start living 
+func GetLivingTime(username string) (*time.Time, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
+	defer cancel()
+
+	result, err := client.Get(ctx, "living:"+username).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, nil
+		}
+		log.Warn("GetLivingTime: ", err)
+		return nil, err
+	}
+	
+	t, err := time.Parse(time.RFC3339, result)
+	if err != nil {
+		log.Warn("GetLivingTime: ", err)
+		return nil, err
+	}
+	return &t, nil
 }
 
 func wrapUserKey(key string) string {

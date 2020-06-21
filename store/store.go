@@ -128,6 +128,30 @@ func ChangePassword(user *models.User, password string) error {
 	return changePasswordToRedis(user, password)
 }
 
+// NewPublicUserFromUser - new public user from user
+func NewPublicUserFromUser(user *models.User) *models.PublicUser {
+	public := &models.PublicUser{
+		Username:  user.Username,
+		RoomName:  user.Room.Name,
+		RoomIntro: user.Room.Intro,
+	}
+	public.Living, _ = GetUserIsLiving(user.Username)
+	public.StartTime, _ = GetLivingTime(user.Username)
+	return public
+}
+
+// NewLivingListModelFromUserList - new living list model from user list
+func NewLivingListModelFromUserList(users []*models.User) *models.LivingListModel {
+	list := new(models.LivingListModel)
+	list.Total = len(users)
+
+	for _, user := range users {
+		list.Users = append(list.Users, NewPublicUserFromUser(user))
+	}
+
+	return list
+}
+
 
 // GetLivingUserList - get living user info list
 func GetLivingUserList(num int64) ([]*models.User, error) {

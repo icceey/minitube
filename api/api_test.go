@@ -300,9 +300,11 @@ func TestLivingList(t *testing.T) {
 
 	for i := 121; i < 124; i++ {
 		client.SAdd(ctx, "living", strconv.Itoa(i))
+		client.Set(ctx, "living:"+strconv.Itoa(i), time.Now().Format(time.RFC3339), 0)
 	}
 	body = get(t, "/living/4", "")
 	err = json.Unmarshal(body, &resp)
+	t.Log(string(body))
 	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
 	require.Equal(3, resp.Total, "No user are living")
 	require.Len(resp.Users, 3, "3 users living")
@@ -314,6 +316,7 @@ func TestLivingList(t *testing.T) {
 	require.Len(resp.Users, 2, "3 users living but should only return 2")
 
 	client.SRem(ctx, "living", 122)
+	client.Del(ctx, "living:122")
 
 	body = get(t, "/living/3", "")
 	err = json.Unmarshal(body, &resp)
@@ -329,6 +332,12 @@ func TestGetPublicUser(t *testing.T) {
 	var resp pubResponse
 	body := get(t, "/profile/121", "")
 	err := json.Unmarshal(body, &resp)
+	t.Log(string(body))
+	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
+	require.NotNil(resp.User, "User shouldn't nil")
+
+	body = get(t, "/profile/122", "")
+	err = json.Unmarshal(body, &resp)
 	t.Log(string(body))
 	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
 	require.NotNil(resp.User, "User shouldn't nil")

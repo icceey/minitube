@@ -122,7 +122,6 @@ func getUserFromMysqlBy(by string, value interface{}) (*models.User, error) {
 // 	return pass, nil
 // }
 
-
 func changePasswordToMysql(user *models.User, password string) error {
 	err := db.Model(user).Update("password", password).Error
 	if err != nil {
@@ -162,7 +161,7 @@ func updateUserProfileToMysql(user *models.User, profile *models.ChangeProfileMo
 			return err
 		}
 	}
-	
+
 	err = tx.Model(&user.Room).Updates(profile.MapRoom()).Error
 	if err != nil {
 		tx.Rollback()
