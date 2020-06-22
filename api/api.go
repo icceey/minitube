@@ -120,6 +120,10 @@ func getLivingList(c *gin.Context) {
 		return
 	}
 
+	if num > 24 {
+		num = 24
+	}
+
 	userList, err := store.GetLivingUserList(num)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
