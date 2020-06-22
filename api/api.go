@@ -34,7 +34,7 @@ func init() {
 	Router.Use(middleware.Ginzap(utils.Logger, time.RFC3339, true))
 	Router.Use(middleware.RecoveryWithZap(utils.Logger, true))
 
-	Router.LoadHTMLFiles("./out/index.html", "./out/watch/[streamer].html", "./out/mine.html",
+	Router.LoadHTMLFiles("./out/index.html", "./out/live/[streamer].html", "./out/mine.html",
 		"./out/login.html", "./out/register.html", "./out/404.html")
 	Router.Static("/_next/static", "./out/_next/static")
 	Router.StaticFile("/favicon.ico", "./out/favicon.ico")
