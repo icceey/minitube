@@ -55,6 +55,9 @@ func init() {
 		c.HTML(http.StatusOK, "mine.html", nil)
 	})
 	Router.GET("/live/:username", func(c *gin.Context) {
+		if id, ok := getUserID(c); ok {
+			go store.UpdateWatchHistory(id, c.Param("username"))
+		}
 		c.HTML(http.StatusOK, "[streamer].html", nil)
 	})
 	Router.NoRoute(func (c *gin.Context) {
@@ -74,6 +77,7 @@ func init() {
 	userGroup.GET("/me", getMe)
 	userGroup.POST("/profile", updateUserProfile)
 	userGroup.POST("/password", changePassword)
+	userGroup.GET("/history", getHistory)
 
 	streamGroup := Router.Group("/stream")
 	streamGroup.Use(authMiddleware.MiddlewareFunc())
@@ -81,6 +85,27 @@ func init() {
 
 }
 
+func getHistory(c *gin.Context) {
+	id, ok := getUserID(c)
+	if !ok {
+		return
+	}
+
+	history, err := store.GetWatchHistory(id)
+	if err != nil {
+		c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    http.StatusInternalServerError,
+			"message": "Server Error",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": http.StatusOK,
+		"history": history,
+	})
+}
 
 func getPublicUser(c *gin.Context)  {
 	username := c.Param("username")

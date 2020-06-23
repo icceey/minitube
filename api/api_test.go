@@ -65,6 +65,11 @@ type pubResponse struct {
 	User *models.PublicUser
 }
 
+type historyResponse struct {
+	baseResponse
+	History []*models.History
+}
+
 func TestRegister(t *testing.T) {
 	require := require.New(t)
 
@@ -304,7 +309,6 @@ func TestLivingList(t *testing.T) {
 	}
 	body = get(t, "/living/4", "")
 	err = json.Unmarshal(body, &resp)
-	t.Log(string(body))
 	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
 	require.Equal(3, resp.Total, "No user are living")
 	require.Len(resp.Users, 3, "3 users living")
@@ -341,6 +345,32 @@ func TestGetPublicUser(t *testing.T) {
 	t.Log(string(body))
 	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
 	require.NotNil(resp.User, "User shouldn't nil")
+}
+
+func TestGetHistory(t *testing.T) {
+	require := require.New(t)
+
+	var resp historyResponse
+	body := get(t, "/user/history", tokens[0])
+	err := json.Unmarshal(body, &resp)
+	t.Log(string(body))
+	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
+	require.Empty(resp.History, "User shouldn't nil")
+
+	store.UpdateWatchHistory(31, "121")
+	time.Sleep(time.Second)
+	store.UpdateWatchHistory(31, "122")
+	time.Sleep(time.Second)
+	store.UpdateWatchHistory(31, "123")
+	time.Sleep(time.Second)
+	store.UpdateWatchHistory(31, "121")
+
+	body = get(t, "/user/history", tokens[0])
+	err = json.Unmarshal(body, &resp)
+	t.Log(string(body))
+	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
+	require.Len(resp.History, 3, "history has 3 items")
+
 }
 
 func postJSON(t *testing.T, uri string, mp map[string]string, token string) []byte {
