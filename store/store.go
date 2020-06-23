@@ -137,6 +137,7 @@ func NewPublicUserFromUser(user *models.User) *models.PublicUser {
 	}
 	public.Living, _ = GetUserIsLiving(user.Username)
 	public.StartTime, _ = GetLivingTime(user.Username)
+	public.Watching, _ = GetWatchingNumber(user.Username)
 	return public
 }
 

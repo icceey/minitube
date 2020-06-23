@@ -254,7 +254,7 @@ func GetUserIsLiving(username string) (bool, error) {
 	return living, err
 }
 
-// GetLivingTime - get when user start living 
+// GetLivingTime - get when user start living
 func GetLivingTime(username string) (*time.Time, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
 	defer cancel()
@@ -267,7 +267,7 @@ func GetLivingTime(username string) (*time.Time, error) {
 		log.Warn("GetLivingTime: ", err)
 		return nil, err
 	}
-	
+
 	t, err := time.Parse(time.RFC3339, result)
 	if err != nil {
 		log.Warn("GetLivingTime: ", err)
@@ -282,7 +282,7 @@ func UpdateWatchHistory(id uint, username string) error {
 	defer cancel()
 
 	err := client.ZAdd(ctx, wrapHistoryKey(id), &redis.Z{
-		Score: float64(time.Now().Unix()),
+		Score:  float64(time.Now().Unix()),
 		Member: username,
 	}).Err()
 
@@ -312,6 +312,23 @@ func GetWatchHistory(id uint) ([]*models.History, error) {
 	return s, err
 }
 
+// GetWatchingNumber - get how many user are watching live
+func GetWatchingNumber(username string) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	numStr, err := client.Get(ctx, "watching:"+username).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return 0, nil
+		}
+		log.Warn("GetWatchingNumber: ", err)
+		return 0, err
+	}
+
+	return strconv.Atoi(numStr)
+}
+
 func wrapUserKey(key string) string {
 	return "user:" + key
 }
@@ -333,5 +350,5 @@ func wrapPhoneKey(phone string) string {
 }
 
 func wrapHistoryKey(id uint) string {
-	return wrapUserKey("history:"+strconv.Itoa(int(id)))
+	return wrapUserKey("history:" + strconv.Itoa(int(id)))
 }

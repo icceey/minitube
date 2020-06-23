@@ -107,6 +107,7 @@ type PublicUser struct {
 	RoomIntro *string    `json:"live_intro"`
 	Living    bool       `json:"living"`
 	StartTime *time.Time `json:"start_time"`
+	Watching  int        `json:"watching"`
 }
 
 // LivingListModel - living list response model
