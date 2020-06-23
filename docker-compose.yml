@@ -37,6 +37,7 @@ services:
       environment:
         - REDIS_ADDR=${REDIS_ADDR}
         - REDIS_PASSWORD=${REDIS_PASSWORD}
+        - DEBUG=${DEBUG}
 
 
     redis:
