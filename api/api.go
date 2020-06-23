@@ -55,8 +55,11 @@ func init() {
 		c.HTML(http.StatusOK, "mine.html", nil)
 	})
 	Router.GET("/live/:username", func(c *gin.Context) {
-		if id, ok := getUserID(c); ok {
-			go store.UpdateWatchHistory(id, c.Param("username"))
+		claims := middleware.ExtractClaims(c)
+		i, exists := claims[authMiddleware.IdentityKey]
+		id, ok := i.(float64)
+		if ok && exists {
+			go store.UpdateWatchHistory(uint(id), c.Param("username"))
 		}
 		c.HTML(http.StatusOK, "[streamer].html", nil)
 	})
