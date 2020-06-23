@@ -2,6 +2,8 @@ package models
 
 import (
 	"time"
+
+	"github.com/go-redis/redis/v8"
 )
 
 // RegisterModel - register request model
@@ -111,4 +113,18 @@ type PublicUser struct {
 type LivingListModel struct {
 	Total int           `json:"total"`
 	Users []*PublicUser `json:"users"`
+}
+
+// History - watch history
+type History struct {
+	Username  string `json:"username"`
+	TimeStamp int64  `json:"timestamp"`
+}
+
+// ZToHistory - parse redis.Z to History
+func ZToHistory(z *redis.Z) *History {
+	return &History{
+		Username:  z.Member.(string),
+		TimeStamp: int64(z.Score),
+	}
 }

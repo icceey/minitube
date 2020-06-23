@@ -276,6 +276,42 @@ func GetLivingTime(username string) (*time.Time, error) {
 	return &t, nil
 }
 
+// UpdateWatchHistory - update watch history
+func UpdateWatchHistory(id uint, username string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	err := client.ZAdd(ctx, wrapHistoryKey(id), &redis.Z{
+		Score: float64(time.Now().Unix()),
+		Member: username,
+	}).Err()
+
+	if err != nil {
+		log.Warn("UpdateWatchHistory: ", err)
+		return err
+	}
+
+	return nil
+}
+
+// GetWatchHistory - get watch history
+func GetWatchHistory(id uint) ([]*models.History, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	result, err := client.ZRevRangeWithScores(ctx, wrapHistoryKey(id), 0, 31).Result()
+	if err != nil {
+		log.Warn(err)
+	}
+
+	s := make([]*models.History, len(result))
+	for i := range result {
+		s[i] = models.ZToHistory(&result[i])
+	}
+
+	return s, err
+}
+
 func wrapUserKey(key string) string {
 	return "user:" + key
 }
@@ -294,4 +330,8 @@ func wrapEmailKey(email string) string {
 
 func wrapPhoneKey(phone string) string {
 	return wrapUserKey("phone:" + phone)
+}
+
+func wrapHistoryKey(id uint) string {
+	return wrapUserKey("history:"+strconv.Itoa(int(id)))
 }

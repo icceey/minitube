@@ -262,6 +262,23 @@ func streamForTest(from, to int, start bool) {
 	}
 }
 
+func TestWatch(t *testing.T) {
+	require := require.New(t)
+
+	for i := 0; i < 10; i++ {
+		err := UpdateWatchHistory(1, strconv.Itoa(i))
+		require.NoError(err, "Update watch shouldn't error")
+	}
+
+	result, err := GetWatchHistory(1)
+	require.NoError(err, "Get watch history shouldn't error")
+	require.Len(result, 10, "watch history record len 10")
+
+	result, err = GetWatchHistory(2)
+	require.NoError(err, "Get watch history shouldn't error")
+	require.Empty(result, "watch history record empty")
+}
+
 func createUserForTest() {
 	users = make([]*models.User, 0, 50)
 	phone := int64(13688866600)
