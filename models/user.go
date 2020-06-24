@@ -55,3 +55,11 @@ func NewUserFromRegister(reg *RegisterModel) *User {
 	}
 	return user
 }
+
+// Follow - user's follow associations
+// type Follow struct {
+// 	gorm.Model
+// 	Follower *User `gorm:""`
+// 	Following *User `gorm:""`
+// 	Status uint `gorm:""`
+// }

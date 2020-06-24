@@ -70,6 +70,12 @@ type historyResponse struct {
 	History []*models.History
 }
 
+type followResponse struct {
+	baseResponse
+	Followers []*models.PublicUser
+	Followings []*models.PublicUser
+}
+
 func TestRegister(t *testing.T) {
 	require := require.New(t)
 
@@ -336,13 +342,11 @@ func TestGetPublicUser(t *testing.T) {
 	var resp pubResponse
 	body := get(t, "/profile/121", "")
 	err := json.Unmarshal(body, &resp)
-	t.Log(string(body))
 	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
 	require.NotNil(resp.User, "User shouldn't nil")
 
 	body = get(t, "/profile/122", "")
 	err = json.Unmarshal(body, &resp)
-	t.Log(string(body))
 	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
 	require.NotNil(resp.User, "User shouldn't nil")
 }
@@ -353,9 +357,8 @@ func TestGetHistory(t *testing.T) {
 	var resp historyResponse
 	body := get(t, "/user/history", tokens[0])
 	err := json.Unmarshal(body, &resp)
-	t.Log(string(body))
 	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
-	require.Empty(resp.History, "User shouldn't nil")
+	require.Empty(resp.History, "History should empty")
 
 	store.UpdateWatchHistory(31, "121")
 	time.Sleep(time.Second)
@@ -367,10 +370,51 @@ func TestGetHistory(t *testing.T) {
 
 	body = get(t, "/user/history", tokens[0])
 	err = json.Unmarshal(body, &resp)
-	t.Log(string(body))
 	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
 	require.Len(resp.History, 3, "history has 3 items")
 
+}
+
+func TestFollow(t *testing.T) {
+	require := require.New(t)
+
+	check := func (id string, followersNumber int, followingsNumber int) {
+		var resp followResponse
+		body := get(t, "/followers/"+id, "")
+		err := json.Unmarshal(body, &resp)
+		t.Log(string(body))
+		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
+		require.Lenf(resp.Followers, followersNumber, "%v has %v followers.", id, followersNumber)
+
+		resp = followResponse{}
+		body = get(t, "/followings/"+id, "")
+		err = json.Unmarshal(body, &resp)
+		t.Log(string(body))
+		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
+		require.Lenf(resp.Followings, followingsNumber, "%v has %v followings.", id, followingsNumber)
+	}
+
+	check("31", 0, 0)
+	check("32", 0, 0)
+
+	var resp baseResponse
+	body := postForm(t, "/user/follow/32", nil, tokens[0])
+	err := json.Unmarshal(body, &resp)
+	t.Log(string(body))
+	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
+	require.Equal(200, resp.Code, "Should return 200")
+
+	check("31", 0, 1)
+	check("32", 1, 0)
+
+	body = postForm(t, "/user/unfollow/32", nil, tokens[0])
+	err = json.Unmarshal(body, &resp)
+	t.Log(string(body))
+	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
+	require.Equal(200, resp.Code, "Should return 200")
+
+	check("31", 0, 0)
+	check("32", 0, 0)
 }
 
 func postJSON(t *testing.T, uri string, mp map[string]string, token string) []byte {

@@ -63,7 +63,7 @@ func init() {
 		}
 		c.HTML(http.StatusOK, "[streamer].html", nil)
 	})
-	Router.NoRoute(func (c *gin.Context) {
+	Router.NoRoute(func(c *gin.Context) {
 		c.HTML(http.StatusNotFound, "404.html", nil)
 	})
 
@@ -72,6 +72,8 @@ func init() {
 	Router.POST("/refresh", authMiddleware.RefreshHandler)
 	Router.POST("/logout", authMiddleware.LogoutHandler)
 
+	Router.GET("/followers/:id", getFollowers)
+	Router.GET("/followings/:id", getFollowings)
 	Router.GET("/profile/:username", getPublicUser)
 	Router.GET("/living/:num", getLivingList)
 
@@ -80,12 +82,118 @@ func init() {
 	userGroup.GET("/me", getMe)
 	userGroup.POST("/profile", updateUserProfile)
 	userGroup.POST("/password", changePassword)
+	userGroup.POST("/follow/:id", follow)
+	userGroup.POST("/unfollow/:id", unFollow)
 	userGroup.GET("/history", getHistory)
 
 	streamGroup := Router.Group("/stream")
 	streamGroup.Use(authMiddleware.MiddlewareFunc())
 	streamGroup.GET("/key/:username", getStreamKey)
 
+}
+
+func getFollowers(c *gin.Context) {
+	getFollows(c, true)
+}
+
+func getFollowings(c *gin.Context) {
+	getFollows(c, false)
+}
+
+func getFollows(c *gin.Context, followers bool) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    http.StatusBadRequest,
+			"message": "Bad param",
+		})
+		return
+	}
+
+	var idList []string
+	if followers {
+		idList, err = store.GetFollowersFromRedis(uint(id))
+	} else {
+		idList, err = store.GetFollowingsFromRedis(uint(id))
+	}
+	if err != nil {
+		c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    http.StatusInternalServerError,
+			"message": "Server Error",
+		})
+		return
+	}
+
+	userList := make([]*models.PublicUser, 0)
+	for _, idStr := range idList {
+		id, _ := strconv.Atoi(idStr)
+		user, err := store.GetUserByID(uint(id))
+		if err != nil {
+			c.Error(err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    http.StatusInternalServerError,
+				"message": "Server Error",
+			})
+			return
+		}
+		userList = append(userList, store.NewPublicUserFromUser(user))
+	}
+
+	if followers {
+		c.JSON(http.StatusOK, gin.H{
+			"code":      http.StatusOK,
+			"followers": userList,
+		})
+	} else {
+		c.JSON(http.StatusOK, gin.H{
+			"code":       http.StatusOK,
+			"followings": userList,
+		})
+	}
+}
+
+func follow(c *gin.Context) {
+	followOrNot(c, true)
+}
+
+func unFollow(c *gin.Context) {
+	followOrNot(c, false)
+}
+
+func followOrNot(c *gin.Context, follow bool) {
+	id, ok := getUserID(c)
+	if !ok {
+		return
+	}
+
+	userID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    http.StatusBadRequest,
+			"message": "Bad param",
+		})
+		return
+	}
+
+	if follow {
+		err = store.FollowUserInRedis(id, uint(userID))
+	} else {
+		err = store.UnFollowUserInRedis(id, uint(userID))
+	}
+	if err != nil {
+		c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    http.StatusInternalServerError,
+			"message": "Server Error",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    http.StatusOK,
+		"message": "OK",
+	})
 }
 
 func getHistory(c *gin.Context) {
@@ -105,12 +213,12 @@ func getHistory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"code": http.StatusOK,
+		"code":    http.StatusOK,
 		"history": history,
 	})
 }
 
-func getPublicUser(c *gin.Context)  {
+func getPublicUser(c *gin.Context) {
 	username := c.Param("username")
 
 	user, err := store.GetUserByUsername(username)
@@ -163,7 +271,7 @@ func getLivingList(c *gin.Context) {
 
 	model := store.NewLivingListModelFromUserList(userList)
 	c.JSON(http.StatusOK, gin.H{
-		"code": http.StatusOK,
+		"code":  http.StatusOK,
 		"total": model.Total,
 		"users": model.Users,
 	})
@@ -352,7 +460,7 @@ func changePassword(c *gin.Context) {
 			"code":    http.StatusBadRequest,
 			"message": "Password is wrong",
 		})
-		return 
+		return
 	}
 
 	passwordEncrypted, err := bcrypt.GenerateFromPassword([]byte(pass.NewPassword), bcrypt.DefaultCost)

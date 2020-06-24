@@ -329,6 +329,88 @@ func GetWatchingNumber(username string) (int, error) {
 	return strconv.Atoi(numStr)
 }
 
+// FollowUserInRedis - follow user
+func FollowUserInRedis(followerID uint, followingID uint) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
+	defer cancel()
+
+	pipe := client.TxPipeline()
+	timestamp := float64(time.Now().Unix())
+
+	pipe.ZAdd(ctx, wrapFollowingKey(followerID), &redis.Z{
+		Member: strconv.Itoa(int(followingID)),
+		Score: timestamp,
+	})
+
+	pipe.ZAdd(ctx, wrapFollowerKey(followingID), &redis.Z{
+		Member: strconv.Itoa(int(followerID)),
+		Score: timestamp,
+	})
+
+	cmds, err := pipe.Exec(ctx)
+	if err == nil {
+		for _, cmd := range cmds {
+			if cmd.Err() != nil {
+				log.Warn("FollowUserInRedis: ", cmd.Err())
+				return err
+			}
+		}
+	}
+
+	return err
+}
+
+// UnFollowUserInRedis - unFollow user
+func UnFollowUserInRedis(followerID uint, followingID uint) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
+	defer cancel()
+
+	pipe := client.TxPipeline()
+
+	pipe.ZRem(ctx, wrapFollowingKey(followerID), strconv.Itoa(int(followingID)))
+	pipe.ZRem(ctx, wrapFollowerKey(followingID), strconv.Itoa(int(followerID)))
+
+	cmds, err := pipe.Exec(ctx)
+	if err == nil {
+		for _, cmd := range cmds {
+			if cmd.Err() != nil {
+				log.Warn("UnFollowUserInRedis: ", cmd.Err())
+				return err
+			}
+		}
+	}
+
+	return err
+}
+
+// GetFollowersFromRedis - get followers
+func GetFollowersFromRedis(id uint) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
+	defer cancel()
+
+	followers, err := client.ZRevRange(ctx, wrapFollowerKey(id), 0, -1).Result()
+	if err != nil {
+		log.Warn()
+		return []string{}, err
+	}
+
+	return followers, nil
+}
+
+// GetFollowingsFromRedis - get followers
+func GetFollowingsFromRedis(id uint) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
+	defer cancel()
+
+	followers, err := client.ZRevRange(ctx, wrapFollowingKey(id), 0, -1).Result()
+	if err != nil {
+		log.Warn()
+		return []string{}, err
+	}
+
+	return followers, nil
+}
+
 func wrapUserKey(key string) string {
 	return "user:" + key
 }
@@ -351,4 +433,12 @@ func wrapPhoneKey(phone string) string {
 
 func wrapHistoryKey(id uint) string {
 	return wrapUserKey("history:" + strconv.Itoa(int(id)))
+}
+
+func wrapFollowerKey(id uint) string {
+	return wrapUserKey("follower:"+strconv.Itoa(int(id)))
+}
+
+func wrapFollowingKey(id uint) string {
+	return wrapUserKey("following:"+strconv.Itoa(int(id)))
 }
