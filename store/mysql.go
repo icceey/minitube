@@ -100,27 +100,6 @@ func getUserFromMysqlBy(by string, value interface{}) (*models.User, error) {
 	return user, tx.Commit().Error
 }
 
-// func getPasswordFromMysql(username string) (string, error) {
-// 	result := db.Model(models.User{}).Select("password").Where("username = ?", username)
-// 	err := result.Error
-// 	if err != nil {
-// 		if gorm.IsRecordNotFoundError(err) {
-// 			return "", ErrMySQLUserNotExists
-// 		}
-// 		log.Warnf("Get user %v's password from Mysql failed: %v", username, err)
-// 		return "", ErrMySQLFailed
-// 	}
-// 	var pass string
-// 	err = result.Row().Scan(&pass)
-// 	if err != nil {
-// 		if errors.Is(err, sql.ErrNoRows) {
-// 			return "", ErrMySQLUserNotExists
-// 		}
-// 		log.Warnf("Get user %v's password from Mysql failed: %v", username, err)
-// 		return "", ErrMySQLFailed
-// 	}
-// 	return pass, nil
-// }
 
 func changePasswordToMysql(user *models.User, password string) error {
 	err := db.Model(user).Update("password", password).Error

@@ -330,21 +330,21 @@ func GetWatchingNumber(username string) (int, error) {
 }
 
 // FollowUserInRedis - follow user
-func FollowUserInRedis(followerID uint, followingID uint) error {
+func FollowUserInRedis(followerUsername string, followingUsername string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
 	defer cancel()
 
 	pipe := client.TxPipeline()
 	timestamp := float64(time.Now().Unix())
 
-	pipe.ZAdd(ctx, wrapFollowingKey(followerID), &redis.Z{
-		Member: strconv.Itoa(int(followingID)),
-		Score: timestamp,
+	pipe.ZAdd(ctx, wrapFollowingKey(followerUsername), &redis.Z{
+		Member: followingUsername,
+		Score:  timestamp,
 	})
 
-	pipe.ZAdd(ctx, wrapFollowerKey(followingID), &redis.Z{
-		Member: strconv.Itoa(int(followerID)),
-		Score: timestamp,
+	pipe.ZAdd(ctx, wrapFollowerKey(followingUsername), &redis.Z{
+		Member: followerUsername,
+		Score:  timestamp,
 	})
 
 	cmds, err := pipe.Exec(ctx)
@@ -361,14 +361,14 @@ func FollowUserInRedis(followerID uint, followingID uint) error {
 }
 
 // UnFollowUserInRedis - unFollow user
-func UnFollowUserInRedis(followerID uint, followingID uint) error {
+func UnFollowUserInRedis(followerUsername string, followingUsername string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
 	defer cancel()
 
 	pipe := client.TxPipeline()
 
-	pipe.ZRem(ctx, wrapFollowingKey(followerID), strconv.Itoa(int(followingID)))
-	pipe.ZRem(ctx, wrapFollowerKey(followingID), strconv.Itoa(int(followerID)))
+	pipe.ZRem(ctx, wrapFollowingKey(followerUsername), followingUsername)
+	pipe.ZRem(ctx, wrapFollowerKey(followingUsername), followerUsername)
 
 	cmds, err := pipe.Exec(ctx)
 	if err == nil {
@@ -384,11 +384,11 @@ func UnFollowUserInRedis(followerID uint, followingID uint) error {
 }
 
 // GetFollowersFromRedis - get followers
-func GetFollowersFromRedis(id uint) ([]string, error) {
+func GetFollowersFromRedis(username string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
 	defer cancel()
 
-	followers, err := client.ZRevRange(ctx, wrapFollowerKey(id), 0, -1).Result()
+	followers, err := client.ZRevRange(ctx, wrapFollowerKey(username), 0, -1).Result()
 	if err != nil {
 		log.Warn()
 		return []string{}, err
@@ -398,11 +398,11 @@ func GetFollowersFromRedis(id uint) ([]string, error) {
 }
 
 // GetFollowingsFromRedis - get followers
-func GetFollowingsFromRedis(id uint) ([]string, error) {
+func GetFollowingsFromRedis(username string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
 	defer cancel()
 
-	followers, err := client.ZRevRange(ctx, wrapFollowingKey(id), 0, -1).Result()
+	followers, err := client.ZRevRange(ctx, wrapFollowingKey(username), 0, -1).Result()
 	if err != nil {
 		log.Warn()
 		return []string{}, err
@@ -435,10 +435,10 @@ func wrapHistoryKey(id uint) string {
 	return wrapUserKey("history:" + strconv.Itoa(int(id)))
 }
 
-func wrapFollowerKey(id uint) string {
-	return wrapUserKey("follower:"+strconv.Itoa(int(id)))
+func wrapFollowerKey(username string) string {
+	return wrapUserKey("follower:" + username)
 }
 
-func wrapFollowingKey(id uint) string {
-	return wrapUserKey("following:"+strconv.Itoa(int(id)))
+func wrapFollowingKey(username string) string {
+	return wrapUserKey("following:" + username)
 }

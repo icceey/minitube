@@ -378,43 +378,43 @@ func TestGetHistory(t *testing.T) {
 func TestFollow(t *testing.T) {
 	require := require.New(t)
 
-	check := func (id string, followersNumber int, followingsNumber int) {
+	check := func (username string, followersNumber int, followingsNumber int) {
 		var resp followResponse
-		body := get(t, "/followers/"+id, "")
+		body := get(t, "/followers/"+username, "")
 		err := json.Unmarshal(body, &resp)
 		t.Log(string(body))
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
-		require.Lenf(resp.Followers, followersNumber, "%v has %v followers.", id, followersNumber)
+		require.Lenf(resp.Followers, followersNumber, "%v has %v followers.", username, followersNumber)
 
 		resp = followResponse{}
-		body = get(t, "/followings/"+id, "")
+		body = get(t, "/followings/"+username, "")
 		err = json.Unmarshal(body, &resp)
 		t.Log(string(body))
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
-		require.Lenf(resp.Followings, followingsNumber, "%v has %v followings.", id, followingsNumber)
+		require.Lenf(resp.Followings, followingsNumber, "%v has %v followings.", username, followingsNumber)
 	}
 
-	check("31", 0, 0)
-	check("32", 0, 0)
+	check("121", 0, 0)
+	check("122", 0, 0)
 
 	var resp baseResponse
-	body := postForm(t, "/user/follow/32", nil, tokens[0])
+	body := postForm(t, "/user/follow/122", nil, tokens[0])
 	err := json.Unmarshal(body, &resp)
 	t.Log(string(body))
 	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
 	require.Equal(200, resp.Code, "Should return 200")
 
-	check("31", 0, 1)
-	check("32", 1, 0)
+	check("121", 0, 1)
+	check("122", 1, 0)
 
-	body = postForm(t, "/user/unfollow/32", nil, tokens[0])
+	body = postForm(t, "/user/unfollow/122", nil, tokens[0])
 	err = json.Unmarshal(body, &resp)
 	t.Log(string(body))
 	require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
 	require.Equal(200, resp.Code, "Should return 200")
 
-	check("31", 0, 0)
-	check("32", 0, 0)
+	check("121", 0, 0)
+	check("122", 0, 0)
 }
 
 func postJSON(t *testing.T, uri string, mp map[string]string, token string) []byte {

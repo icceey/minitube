@@ -72,8 +72,8 @@ func init() {
 	Router.POST("/refresh", authMiddleware.RefreshHandler)
 	Router.POST("/logout", authMiddleware.LogoutHandler)
 
-	Router.GET("/followers/:id", getFollowers)
-	Router.GET("/followings/:id", getFollowings)
+	Router.GET("/followers/:username", getFollowers)
+	Router.GET("/followings/:username", getFollowings)
 	Router.GET("/profile/:username", getPublicUser)
 	Router.GET("/living/:num", getLivingList)
 
@@ -82,8 +82,8 @@ func init() {
 	userGroup.GET("/me", getMe)
 	userGroup.POST("/profile", updateUserProfile)
 	userGroup.POST("/password", changePassword)
-	userGroup.POST("/follow/:id", follow)
-	userGroup.POST("/unfollow/:id", unFollow)
+	userGroup.POST("/follow/:username", follow)
+	userGroup.POST("/unfollow/:username", unFollow)
 	userGroup.GET("/history", getHistory)
 
 	streamGroup := Router.Group("/stream")
@@ -101,20 +101,13 @@ func getFollowings(c *gin.Context) {
 }
 
 func getFollows(c *gin.Context, followers bool) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    http.StatusBadRequest,
-			"message": "Bad param",
-		})
-		return
-	}
+	username := c.Param("username")
 
-	var idList []string
+	var usernameList []string
 	if followers {
-		idList, err = store.GetFollowersFromRedis(uint(id))
+		usernameList, err = store.GetFollowersFromRedis(username)
 	} else {
-		idList, err = store.GetFollowingsFromRedis(uint(id))
+		usernameList, err = store.GetFollowingsFromRedis(username)
 	}
 	if err != nil {
 		c.Error(err)
@@ -126,9 +119,8 @@ func getFollows(c *gin.Context, followers bool) {
 	}
 
 	userList := make([]*models.PublicUser, 0)
-	for _, idStr := range idList {
-		id, _ := strconv.Atoi(idStr)
-		user, err := store.GetUserByID(uint(id))
+	for _, username := range usernameList {
+		user, err := store.GetUserByUsername(username)
 		if err != nil {
 			c.Error(err)
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -162,24 +154,16 @@ func unFollow(c *gin.Context) {
 }
 
 func followOrNot(c *gin.Context, follow bool) {
-	id, ok := getUserID(c)
+	username, ok := getUsername(c)
 	if !ok {
 		return
 	}
 
-	userID, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    http.StatusBadRequest,
-			"message": "Bad param",
-		})
-		return
-	}
-
+	dstUsername := c.Param("username")
 	if follow {
-		err = store.FollowUserInRedis(id, uint(userID))
+		err = store.FollowUserInRedis(username, dstUsername)
 	} else {
-		err = store.UnFollowUserInRedis(id, uint(userID))
+		err = store.UnFollowUserInRedis(username, dstUsername)
 	}
 	if err != nil {
 		c.Error(err)
@@ -501,4 +485,20 @@ func getUserID(c *gin.Context) (uint, bool) {
 		return 0, false
 	}
 	return uint(id), true
+}
+
+
+func getUsername(c *gin.Context) (string, bool) {
+	claims := middleware.ExtractClaims(c)
+
+	i, exists := claims["username"]
+	username, ok := i.(string)
+	if !exists || !ok {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    http.StatusBadRequest,
+			"message": "Bad Token.",
+		})
+		return "", false
+	}
+	return username, true
 }
