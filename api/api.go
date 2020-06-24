@@ -102,6 +102,22 @@ func getFollowings(c *gin.Context) {
 
 func getFollows(c *gin.Context, followers bool) {
 	username := c.Param("username")
+	_, err := store.GetUserByUsername(username)
+	if err != nil {
+		if errors.Is(err, store.ErrRedisUserNotExists) || errors.Is(err, store.ErrMySQLUserNotExists) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code":    http.StatusBadRequest,
+				"message": "User not exists.",
+			})
+			return
+		}
+		c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    http.StatusInternalServerError,
+			"message": "Server Error",
+		})
+		return
+	}
 
 	var usernameList []string
 	if followers {
@@ -160,6 +176,23 @@ func followOrNot(c *gin.Context, follow bool) {
 	}
 
 	dstUsername := c.Param("username")
+	_, err := store.GetUserByUsername(dstUsername)
+	if err != nil {
+		if errors.Is(err, store.ErrRedisUserNotExists) || errors.Is(err, store.ErrMySQLUserNotExists) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code":    http.StatusBadRequest,
+				"message": "User not exists.",
+			})
+			return
+		}
+		c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    http.StatusInternalServerError,
+			"message": "Server Error",
+		})
+		return
+	}
+
 	if follow {
 		err = store.FollowUserInRedis(username, dstUsername)
 	} else {
