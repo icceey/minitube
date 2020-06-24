@@ -343,6 +343,26 @@ func register(c *gin.Context) {
 		})
 		return
 	}
+	if user.Email != "" {
+		_, err = store.GetUserByEmail(user.Email)
+		if err == nil {
+			c.JSON(http.StatusConflict, gin.H{
+				"code":    http.StatusConflict,
+				"message": "Email has been used",
+			})
+			return
+		}
+	}
+	if user.Phone != "" {
+		_, err = store.GetUserByPhone(user.Phone)
+		if err == nil {
+			c.JSON(http.StatusConflict, gin.H{
+				"code":    http.StatusConflict,
+				"message": "Phone has been used",
+			})
+			return
+		}
+	}
 	if !errors.Is(err, store.ErrRedisUserNotExists) && !errors.Is(err, store.ErrMySQLUserNotExists) {
 		c.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{
