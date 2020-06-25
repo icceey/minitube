@@ -21,6 +21,14 @@ var (
 	ErrMySQLUserNotExists = fmt.Errorf("%w user not exists", ErrMySQLFailed)
 )
 
+// Follow status
+const (
+	FollowNo  = iota // not follow he/she, and he/she not follow you
+	Following        // you follow he/she, but he/she not follow you
+	Followed         // he/she follow you, but you not follow he/she
+	FollowAll        // you follow each other
+)
+
 var (
 	byID       = "id"
 	byUsername = "username"
@@ -118,7 +126,6 @@ func UpdateUserProfile(id uint, profile *models.ChangeProfileModel) error {
 	return updateUserProfileToRedis(user, profile)
 }
 
-
 // ChangePassword - user change password to store
 func ChangePassword(user *models.User, password string) error {
 	err := changePasswordToMysql(user, password)
@@ -129,7 +136,7 @@ func ChangePassword(user *models.User, password string) error {
 }
 
 // NewPublicUserFromUser - new public user from user
-func NewPublicUserFromUser(user *models.User) *models.PublicUser {
+func NewPublicUserFromUser(username string, user *models.User) *models.PublicUser {
 	public := &models.PublicUser{
 		Username:  user.Username,
 		RoomName:  user.Room.Name,
@@ -138,21 +145,23 @@ func NewPublicUserFromUser(user *models.User) *models.PublicUser {
 	public.Living, _ = GetUserIsLiving(user.Username)
 	public.StartTime, _ = GetLivingTime(user.Username)
 	public.Watching, _ = GetWatchingNumber(user.Username)
+	if username != "" {
+		public.Follow, _ = GetFollowStatusFromRedis(username, user.Username)
+	}
 	return public
 }
 
 // NewLivingListModelFromUserList - new living list model from user list
-func NewLivingListModelFromUserList(users []*models.User) *models.LivingListModel {
+func NewLivingListModelFromUserList(username string, users []*models.User) *models.LivingListModel {
 	list := new(models.LivingListModel)
 	list.Total = len(users)
 
 	for _, user := range users {
-		list.Users = append(list.Users, NewPublicUserFromUser(user))
+		list.Users = append(list.Users, NewPublicUserFromUser(username, user))
 	}
 
 	return list
 }
-
 
 // GetLivingUserList - get living user info list
 func GetLivingUserList(num int64) ([]*models.User, error) {

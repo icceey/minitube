@@ -380,14 +380,14 @@ func TestFollow(t *testing.T) {
 
 	check := func (username string, followersNumber int, followingsNumber int) {
 		var resp followResponse
-		body := get(t, "/followers/"+username, "")
+		body := get(t, "/followers/"+username, tokens[0])
 		err := json.Unmarshal(body, &resp)
 		t.Log(string(body))
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))
 		require.Lenf(resp.Followers, followersNumber, "%v has %v followers.", username, followersNumber)
 
 		resp = followResponse{}
-		body = get(t, "/followings/"+username, "")
+		body = get(t, "/followings/"+username, tokens[0])
 		err = json.Unmarshal(body, &resp)
 		t.Log(string(body))
 		require.NoErrorf(err, "Json Unmarshal Error <%v>", string(body))

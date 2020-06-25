@@ -55,11 +55,8 @@ func init() {
 		c.HTML(http.StatusOK, "mine.html", nil)
 	})
 	Router.GET("/live/:username", func(c *gin.Context) {
-		claims := middleware.ExtractClaims(c)
-		i, exists := claims[authMiddleware.IdentityKey]
-		id, ok := i.(float64)
-		if ok && exists {
-			go store.UpdateWatchHistory(uint(id), c.Param("username"))
+		if id, ok := getUserID(c); ok {
+			go store.UpdateWatchHistory(id, c.Param("username"))
 		}
 		c.HTML(http.StatusOK, "[streamer].html", nil)
 	})
@@ -101,6 +98,7 @@ func getFollowings(c *gin.Context) {
 }
 
 func getFollows(c *gin.Context, followers bool) {
+	log.Debug("getFollows ====>",middleware.GetToken(c))
 	username := c.Param("username")
 	_, err := store.GetUserByUsername(username)
 	if err != nil {
@@ -134,6 +132,7 @@ func getFollows(c *gin.Context, followers bool) {
 		return
 	}
 
+	me, _ := getUsername(c)
 	userList := make([]*models.PublicUser, 0)
 	for _, username := range usernameList {
 		user, err := store.GetUserByUsername(username)
@@ -145,7 +144,7 @@ func getFollows(c *gin.Context, followers bool) {
 			})
 			return
 		}
-		userList = append(userList, store.NewPublicUserFromUser(user))
+		userList = append(userList, store.NewPublicUserFromUser(me, user))
 	}
 
 	if followers {
@@ -170,7 +169,7 @@ func unFollow(c *gin.Context) {
 }
 
 func followOrNot(c *gin.Context, follow bool) {
-	username, ok := getUsername(c)
+	username, ok := getUsernameWithError(c)
 	if !ok {
 		return
 	}
@@ -214,7 +213,7 @@ func followOrNot(c *gin.Context, follow bool) {
 }
 
 func getHistory(c *gin.Context) {
-	id, ok := getUserID(c)
+	id, ok := getUserIDWithError(c)
 	if !ok {
 		return
 	}
@@ -255,9 +254,10 @@ func getPublicUser(c *gin.Context) {
 		return
 	}
 
+	me, _ := getUsername(c)
 	c.JSON(http.StatusOK, gin.H{
 		"code": http.StatusOK,
-		"user": store.NewPublicUserFromUser(user),
+		"user": store.NewPublicUserFromUser(me, user),
 	})
 }
 
@@ -286,7 +286,8 @@ func getLivingList(c *gin.Context) {
 		return
 	}
 
-	model := store.NewLivingListModelFromUserList(userList)
+	username, _ := getUsername(c)
+	model := store.NewLivingListModelFromUserList(username, userList)
 	c.JSON(http.StatusOK, gin.H{
 		"code":  http.StatusOK,
 		"total": model.Total,
@@ -295,7 +296,7 @@ func getLivingList(c *gin.Context) {
 }
 
 func getMe(c *gin.Context) {
-	id, ok := getUserID(c)
+	id, ok := getUserIDWithError(c)
 	if !ok {
 		return
 	}
@@ -427,7 +428,7 @@ func getStreamKeyFromLive(c *gin.Context, username string) string {
 }
 
 func updateUserProfile(c *gin.Context) {
-	id, ok := getUserID(c)
+	id, ok := getUserIDWithError(c)
 	if !ok {
 		return
 	}
@@ -466,7 +467,7 @@ func updateUserProfile(c *gin.Context) {
 }
 
 func changePassword(c *gin.Context) {
-	id, ok := getUserID(c)
+	id, ok := getUserIDWithError(c)
 	if !ok {
 		return
 	}
@@ -525,33 +526,52 @@ func changePassword(c *gin.Context) {
 	})
 }
 
-func getUserID(c *gin.Context) (uint, bool) {
+func getUserIDWithError(c *gin.Context) (uint, bool) {
 	claims := middleware.ExtractClaims(c)
+	i, exists := claims[authMiddleware.IdentityKey]
+	id, ok := i.(float64)
+	if ok && exists {
+		return uint(id), true
+	}
+	c.JSON(http.StatusBadRequest, gin.H{
+		"code":    http.StatusBadRequest,
+		"message": "Bad Token.",
+	})
+	return 0, false
+}
+
+func getUserID(c *gin.Context) (uint, bool) {
+	claims, err := authMiddleware.GetClaimsFromJWT(c)
+	if err != nil {
+		return 0, false
+	}
 
 	i, exists := claims[authMiddleware.IdentityKey]
 	id, ok := i.(float64)
-	if !exists || !ok {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    http.StatusBadRequest,
-			"message": "Bad Token.",
-		})
-		return 0, false
-	}
-	return uint(id), true
+	return uint(id), ok && exists
 }
 
+func getUsernameWithError(c *gin.Context) (string, bool) {
+	claims := middleware.ExtractClaims(c)
+	i, exists := claims["username"]
+	username, ok := i.(string)
+	if ok && exists {
+		return username, true
+	}
+	c.JSON(http.StatusBadRequest, gin.H{
+		"code":    http.StatusBadRequest,
+		"message": "Bad Token.",
+	})
+	return "", false
+}
 
 func getUsername(c *gin.Context) (string, bool) {
-	claims := middleware.ExtractClaims(c)
+	claims, err := authMiddleware.GetClaimsFromJWT(c)
+	if err != nil {
+		return "", false
+	}
 
 	i, exists := claims["username"]
 	username, ok := i.(string)
-	if !exists || !ok {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    http.StatusBadRequest,
-			"message": "Bad Token.",
-		})
-		return "", false
-	}
-	return username, true
+	return username, ok && exists
 }

@@ -411,6 +411,37 @@ func GetFollowingsFromRedis(username string) ([]string, error) {
 	return followers, nil
 }
 
+// GetFollowStatusFromRedis - get user follow status
+func GetFollowStatusFromRedis(username string, dstUsername string) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout*2)
+	defer cancel()
+
+	status := FollowNo
+	err := client.ZScore(ctx, wrapFollowingKey(username), dstUsername).Err()
+	if err != nil {
+		if !errors.Is(err, redis.Nil) {
+			return -1, err
+		}
+	} else {
+		status = Following
+	}
+
+	err = client.ZScore(ctx, wrapFollowerKey(username), dstUsername).Err()
+	if err != nil {
+		if !errors.Is(err, redis.Nil) {
+			return -1, err
+		}
+	} else {
+		if status == FollowNo {
+			status = Followed
+		} else {
+			status = FollowAll
+		}
+	}
+
+	return status, nil
+}
+
 func wrapUserKey(key string) string {
 	return "user:" + key
 }
