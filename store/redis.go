@@ -299,7 +299,8 @@ func GetWatchHistory(id uint) ([]*models.History, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	result, err := client.ZRevRangeWithScores(ctx, wrapHistoryKey(id), 0, 31).Result()
+	key := wrapHistoryKey(id)
+	result, err := client.ZRevRangeWithScores(ctx, key, 0, 31).Result()
 	if err != nil {
 		log.Warn(err)
 	}
@@ -308,6 +309,22 @@ func GetWatchHistory(id uint) ([]*models.History, error) {
 	for i := range result {
 		s[i] = models.ZToHistory(&result[i])
 	}
+
+	go func(key string) {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		num, err := client.ZCard(ctx, key).Result()
+		if err != nil {
+			log.Warn(err)
+			return
+		}
+		if num > 64 {
+			err = client.ZPopMin(ctx, key, 32).Err()
+			if err != nil {
+				log.Warn(err)
+			}
+		}
+	}(key)
 
 	return s, err
 }
