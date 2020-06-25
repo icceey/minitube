@@ -175,6 +175,14 @@ func followOrNot(c *gin.Context, follow bool) {
 	}
 
 	dstUsername := c.Param("username")
+	if username == dstUsername {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    http.StatusBadRequest,
+			"message": "Can't follow or unfollow yourself.",
+		})
+		return
+	}
+
 	_, err := store.GetUserByUsername(dstUsername)
 	if err != nil {
 		if errors.Is(err, store.ErrRedisUserNotExists) || errors.Is(err, store.ErrMySQLUserNotExists) {
