@@ -98,7 +98,6 @@ func getFollowings(c *gin.Context) {
 }
 
 func getFollows(c *gin.Context, followers bool) {
-	log.Debug("getFollows ====>",middleware.GetToken(c))
 	username := c.Param("username")
 	_, err := store.GetUserByUsername(username)
 	if err != nil {

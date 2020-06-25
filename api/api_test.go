@@ -438,7 +438,6 @@ func postJSON(t *testing.T, uri string, mp map[string]string, token string) []by
 
 	resp := rec.Result()
 	defer resp.Body.Close()
-	log.Info("===========>", resp.StatusCode)
 
 	body, err := ioutil.ReadAll(resp.Body)
 	require.NoErrorf(t, err, "Request %v shouldn't has error.", uri)
