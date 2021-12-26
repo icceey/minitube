@@ -11,12 +11,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
-
 
 // ginzap is a middleware from https://github.com/gin-contrib/zap
 // let gin use zap logger
 
+// Config is config setting for Ginzap
+type Config struct {
+	TimeFormat string
+	UTC        bool
+	SkipPaths  []string
+}
 
 // Ginzap returns a gin.HandlerFunc (middleware) that logs requests using uber-go/zap.
 //
@@ -27,39 +33,50 @@ import (
 //   1. A time package format string (e.g. time.RFC3339).
 //   2. A boolean stating whether to use UTC time zone or local.
 func Ginzap(logger *zap.Logger, timeFormat string, utc bool) gin.HandlerFunc {
-	return func(c *gin.Context) {
+	return GinzapWithConfig(logger, &Config{TimeFormat: timeFormat, UTC: utc})
+}
 
+// GinzapWithConfig returns a gin.HandlerFunc using configs
+func GinzapWithConfig(logger *zap.Logger, conf *Config) gin.HandlerFunc {
+	skipPaths := make(map[string]bool, len(conf.SkipPaths))
+	for _, path := range conf.SkipPaths {
+		skipPaths[path] = true
+	}
+
+	return func(c *gin.Context) {
+		start := time.Now()
 		// some evil middlewares modify this values
 		path := c.Request.URL.Path
-
-		start := time.Now()
+		query := c.Request.URL.RawQuery
 		c.Next()
-		end := time.Now()
-		latency := end.Sub(start)
-		if utc {
-			end = end.UTC()
-		}
 
-		if len(c.Errors) > 0 {
-			// Append error field if this is an erroneous request.
-			for _, e := range c.Errors.Errors() {
-				logger.Error(e)
+		if _, ok := skipPaths[path]; !ok {
+			end := time.Now()
+			latency := end.Sub(start)
+			if conf.UTC {
+				end = end.UTC()
 			}
-		} else {
-			ip := c.ClientIP()
-			// Ignore health check info.
-			if strings.HasPrefix(ip, "172.19") {
-				return
+
+			if len(c.Errors) > 0 {
+				// Append error field if this is an erroneous request.
+				for _, e := range c.Errors.Errors() {
+					logger.Error(e)
+				}
+			} else {
+				fields := []zapcore.Field{
+					zap.Int("status", c.Writer.Status()),
+					zap.String("method", c.Request.Method),
+					zap.String("path", path),
+					zap.String("query", query),
+					zap.String("ip", c.ClientIP()),
+					zap.String("user-agent", c.Request.UserAgent()),
+					zap.Duration("latency", latency),
+				}
+				if conf.TimeFormat != "" {
+					fields = append(fields, zap.String("time", end.Format(conf.TimeFormat)))
+				}
+				logger.Info(path, fields...)
 			}
-			logger.Info(path,
-				zap.Int("status", c.Writer.Status()),
-				zap.String("method", c.Request.Method),
-				zap.String("path", path),
-				zap.String("ip", ip),
-				zap.String("user-agent", c.Request.UserAgent()),
-				zap.String("time", end.Format(timeFormat)),
-				zap.Duration("latency", latency),
-			)
 		}
 	}
 }
@@ -91,7 +108,7 @@ func RecoveryWithZap(logger *zap.Logger, stack bool) gin.HandlerFunc {
 						zap.String("request", string(httpRequest)),
 					)
 					// If the connection is dead, we can't write a status to it.
-					c.Error(err.(error))
+					c.Error(err.(error)) // nolint: errcheck
 					c.Abort()
 					return
 				}

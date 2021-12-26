@@ -8,9 +8,8 @@ import (
 	"strings"
 	"time"
 
-	// "github.com/dgrijalva/jwt-go"
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v4"
 )
 
 // gin jwt is a middleware from https://github.com/appleboy/gin-jwt
@@ -35,6 +34,10 @@ type GinJWTMiddleware struct {
 
 	// Secret key used for signing. Required.
 	Key []byte
+
+	// Callback to retrieve key used for signing. Setting KeyFunc will bypass
+	// all other key settings
+	KeyFunc func(token *jwt.Token) (interface{}, error)
 
 	// Duration that a jwt token is valid. Optional, defaults to one hour.
 	Timeout time.Duration
@@ -64,16 +67,16 @@ type GinJWTMiddleware struct {
 	PayloadFunc func(data interface{}) MapClaims
 
 	// User can define own Unauthorized func.
-	Unauthorized func(*gin.Context, int, string)
+	Unauthorized func(c *gin.Context, code int, message string)
 
 	// User can define own LoginResponse func.
-	LoginResponse func(*gin.Context, int, string, time.Time)
+	LoginResponse func(c *gin.Context, code int, message string, time time.Time)
 
 	// User can define own LogoutResponse func.
-	LogoutResponse func(*gin.Context, int)
+	LogoutResponse func(c *gin.Context, code int)
 
 	// User can define own RefreshResponse func.
-	RefreshResponse func(*gin.Context, int, string, time.Time)
+	RefreshResponse func(c *gin.Context, code int, message string, time time.Time)
 
 	// Set the identity handler function
 	IdentityHandler func(*gin.Context) interface{}
@@ -103,8 +106,21 @@ type GinJWTMiddleware struct {
 	// Private key file for asymmetric algorithms
 	PrivKeyFile string
 
+	// Private Key bytes for asymmetric algorithms
+	//
+	// Note: PrivKeyFile takes precedence over PrivKeyBytes if both are set
+	PrivKeyBytes []byte
+
 	// Public key file for asymmetric algorithms
 	PubKeyFile string
+
+	// Private key passphrase
+	PrivateKeyPassphrase string
+
+	// Public key bytes for asymmetric algorithms.
+	//
+	// Note: PubKeyFile takes precedence over PubKeyBytes if both are set
+	PubKeyBytes []byte
 
 	// Private key
 	privKey *rsa.PrivateKey
@@ -135,6 +151,9 @@ type GinJWTMiddleware struct {
 
 	// CookieName allow cookie name change for development
 	CookieName string
+
+	// CookieSameSite allow use http.SameSite cookie param
+	CookieSameSite http.SameSite
 }
 
 var (
@@ -157,7 +176,7 @@ var (
 	ErrFailedTokenCreation = errors.New("failed to create JWT Token")
 
 	// ErrExpiredToken indicates JWT token has expired. Can't refresh.
-	ErrExpiredToken = errors.New("token is expired")
+	ErrExpiredToken = errors.New("token is expired") // in practice, this is generated from the jwt library not by us
 
 	// ErrEmptyAuthHeader can be thrown if authing with a HTTP header, the Auth header needs to be set
 	ErrEmptyAuthHeader = errors.New("auth header is empty")
@@ -221,10 +240,27 @@ func (mw *GinJWTMiddleware) readKeys() error {
 }
 
 func (mw *GinJWTMiddleware) privateKey() error {
-	keyData, err := ioutil.ReadFile(mw.PrivKeyFile)
-	if err != nil {
-		return ErrNoPrivKeyFile
+	var keyData []byte
+	if mw.PrivKeyFile == "" {
+		keyData = mw.PrivKeyBytes
+	} else {
+		filecontent, err := ioutil.ReadFile(mw.PrivKeyFile)
+		if err != nil {
+			return ErrNoPrivKeyFile
+		}
+		keyData = filecontent
 	}
+
+	if mw.PrivateKeyPassphrase != "" {
+		//nolint:staticcheck
+		key, err := jwt.ParseRSAPrivateKeyFromPEMWithPassword(keyData, mw.PrivateKeyPassphrase)
+		if err != nil {
+			return ErrInvalidPrivKey
+		}
+		mw.privKey = key
+		return nil
+	}
+
 	key, err := jwt.ParseRSAPrivateKeyFromPEM(keyData)
 	if err != nil {
 		return ErrInvalidPrivKey
@@ -234,10 +270,17 @@ func (mw *GinJWTMiddleware) privateKey() error {
 }
 
 func (mw *GinJWTMiddleware) publicKey() error {
-	keyData, err := ioutil.ReadFile(mw.PubKeyFile)
-	if err != nil {
-		return ErrNoPubKeyFile
+	var keyData []byte
+	if mw.PubKeyFile == "" {
+		keyData = mw.PubKeyBytes
+	} else {
+		filecontent, err := ioutil.ReadFile(mw.PubKeyFile)
+		if err != nil {
+			return ErrNoPubKeyFile
+		}
+		keyData = filecontent
 	}
+
 	key, err := jwt.ParseRSAPublicKeyFromPEM(keyData)
 	if err != nil {
 		return ErrInvalidPubKey
@@ -256,7 +299,6 @@ func (mw *GinJWTMiddleware) usingPublicKeyAlgo() bool {
 
 // MiddlewareInit initialize jwt configs.
 func (mw *GinJWTMiddleware) MiddlewareInit() error {
-
 	if mw.TokenLookup == "" {
 		mw.TokenLookup = "header:Authorization"
 	}
@@ -350,6 +392,11 @@ func (mw *GinJWTMiddleware) MiddlewareInit() error {
 		mw.CookieName = "jwt"
 	}
 
+	// bypass other key settings if KeyFunc is set
+	if mw.KeyFunc != nil {
+		return nil
+	}
+
 	if mw.usingPublicKeyAlgo() {
 		return mw.readKeys()
 	}
@@ -407,7 +454,6 @@ func (mw *GinJWTMiddleware) middlewareImpl(c *gin.Context) {
 // GetClaimsFromJWT get claims from JWT token
 func (mw *GinJWTMiddleware) GetClaimsFromJWT(c *gin.Context) (MapClaims, error) {
 	token, err := mw.ParseToken(c)
-
 	if err != nil {
 		return nil, err
 	}
@@ -436,7 +482,6 @@ func (mw *GinJWTMiddleware) LoginHandler(c *gin.Context) {
 	}
 
 	data, err := mw.Authenticator(c)
-
 	if err != nil {
 		mw.unauthorized(c, http.StatusUnauthorized, mw.HTTPStatusMessageFunc(err, c))
 		return
@@ -456,7 +501,6 @@ func (mw *GinJWTMiddleware) LoginHandler(c *gin.Context) {
 	claims["exp"] = expire.Unix()
 	claims["orig_iat"] = mw.TimeFunc().Unix()
 	tokenString, err := mw.signedString(token)
-
 	if err != nil {
 		mw.unauthorized(c, http.StatusUnauthorized, mw.HTTPStatusMessageFunc(ErrFailedTokenCreation, c))
 		return
@@ -466,6 +510,11 @@ func (mw *GinJWTMiddleware) LoginHandler(c *gin.Context) {
 	if mw.SendCookie {
 		expireCookie := mw.TimeFunc().Add(mw.CookieMaxAge)
 		maxage := int(expireCookie.Unix() - mw.TimeFunc().Unix())
+
+		if mw.CookieSameSite != 0 {
+			c.SetSameSite(mw.CookieSameSite)
+		}
+
 		c.SetCookie(
 			mw.CookieName,
 			tokenString,
@@ -484,6 +533,10 @@ func (mw *GinJWTMiddleware) LoginHandler(c *gin.Context) {
 func (mw *GinJWTMiddleware) LogoutHandler(c *gin.Context) {
 	// delete auth cookie
 	if mw.SendCookie {
+		if mw.CookieSameSite != 0 {
+			c.SetSameSite(mw.CookieSameSite)
+		}
+
 		c.SetCookie(
 			mw.CookieName,
 			"",
@@ -541,7 +594,6 @@ func (mw *GinJWTMiddleware) RefreshToken(c *gin.Context) (string, time.Time, err
 	newClaims["exp"] = expire.Unix()
 	newClaims["orig_iat"] = mw.TimeFunc().Unix()
 	tokenString, err := mw.signedString(newToken)
-
 	if err != nil {
 		return "", time.Now(), err
 	}
@@ -550,6 +602,11 @@ func (mw *GinJWTMiddleware) RefreshToken(c *gin.Context) (string, time.Time, err
 	if mw.SendCookie {
 		expireCookie := mw.TimeFunc().Add(mw.CookieMaxAge)
 		maxage := int(expireCookie.Unix() - time.Now().Unix())
+
+		if mw.CookieSameSite != 0 {
+			c.SetSameSite(mw.CookieSameSite)
+		}
+
 		c.SetCookie(
 			mw.CookieName,
 			tokenString,
@@ -567,7 +624,6 @@ func (mw *GinJWTMiddleware) RefreshToken(c *gin.Context) (string, time.Time, err
 // CheckIfTokenExpire check if token expire
 func (mw *GinJWTMiddleware) CheckIfTokenExpire(c *gin.Context) (jwt.MapClaims, error) {
 	token, err := mw.ParseToken(c)
-
 	if err != nil {
 		// If we receive an error, and the error is anything other than a single
 		// ValidationErrorExpired, we want to return the error.
@@ -687,6 +743,10 @@ func (mw *GinJWTMiddleware) ParseToken(c *gin.Context) (*jwt.Token, error) {
 		return nil, err
 	}
 
+	if mw.KeyFunc != nil {
+		return jwt.Parse(token, mw.KeyFunc)
+	}
+
 	return jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
 		if jwt.GetSigningMethod(mw.SigningAlgorithm) != t.Method {
 			return nil, ErrInvalidSigningAlgorithm
@@ -704,6 +764,10 @@ func (mw *GinJWTMiddleware) ParseToken(c *gin.Context) (*jwt.Token, error) {
 
 // ParseTokenString parse jwt token string
 func (mw *GinJWTMiddleware) ParseTokenString(token string) (*jwt.Token, error) {
+	if mw.KeyFunc != nil {
+		return jwt.Parse(token, mw.KeyFunc)
+	}
+
 	return jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
 		if jwt.GetSigningMethod(mw.SigningAlgorithm) != t.Method {
 			return nil, ErrInvalidSigningAlgorithm
