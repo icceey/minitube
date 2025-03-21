@@ -1,12 +1,13 @@
 module minitube
 
 go 1.17
+toolchain go1.24.1
 
 require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-sql-driver/mysql v1.7.0
-	github.com/golang-jwt/jwt/v4 v4.5.1
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/jinzhu/gorm v1.9.16
 	github.com/stretchr/testify v1.8.3
 	go.uber.org/zap v1.24.0
